@@ -35,7 +35,7 @@ sumflounder <- readRDS(file = here(sdmtmb.dir, "data", "sumflounder.rds"))
 m7_spring <- readRDS(file = here(sdmtmb.dir, "model-outputs", "m7_spring.rds"))
 
 # load spring model predictions
-spring_preds <- readRDS(file = here(sdmtmb.dir, "data", "spring_preds.rds"))
+spring_preds1 <- readRDS(file = here(sdmtmb.dir, "data", "spring_preds.rds"))
 
 sdmtmb_grid <- readRDS(file = here(sdmtmb.dir, "data", "survey_grid.rds")) |>
   rename(strat = STRATUM) |>
@@ -43,11 +43,11 @@ sdmtmb_grid <- readRDS(file = here(sdmtmb.dir, "data", "survey_grid.rds")) |>
 
 
 # filter distribution predictions for year 2021
-preds2019 <- spring_preds |>
+preds2019 <- spring_preds1 |>
   filter(EST_YEAR == 2019) |>
   rename(N_dist = est,
          year = EST_YEAR) |>
-  select(c(X,Y, year, N_dist)) |>
+  dplyr::select(c(X,Y, year, N_dist)) |>
   mutate(year = 1,
          cell = seq(1:length(N_dist))) |>
   data.table::as.data.table()
@@ -78,7 +78,8 @@ plot_surface(pop, mat = "N")
 
 
 #### CONVERT GRID ####
-sdmtmb_ras <- rasterFromXYZ(sdmtmb_grid, crs = 32618)
+sdmtmb_ras <- rasterFromXYZ(sdmtmb_grid, crs = 32618) # able to convert with raster pkg 3.6-11, errors occuring with newer verions
+writeRaster(sdmtmb_ras, filename = here("data", "survey_grid.grd"))
 
 # append  to abundance and rename list item
 pop <- append(pop,sdmtmb_ras)
@@ -98,13 +99,14 @@ names(pop)[[11]] <- "grid_xy"
 dist <- sdmTMB::replicate_df(preds2019, "age", c(0:7)) |>
   left_join(Nage, by = "age") |>
   rename(Nage = "pop$N0") |>
-  mutate(P_i = N_dist/sum(N_dist),
+  mutate(N_dist = exp(N_dist),
+         P_i = N_dist/sum(N_dist),
          N = Nage * P_i) |>
   dplyr::select(age, year, cell, N, X, Y)
 pop <- append(pop, list(dist))
 names(pop)[[12]] <- "sp_N"
 
-ggplot(pop$sp_N) + geom_tile(aes(X, Y, fill = N), width = 10, height = 10) + facet_wrap(~age)
+ggplot(pop$sp_N) + geom_tile(aes(X, Y, fill = N), width = 10, height = 10) + scale_fill_viridis_c() + facet_wrap(~age)
 
 # str(pop_dist$grid_xy)
 # str(pop_dist$sp_N)
