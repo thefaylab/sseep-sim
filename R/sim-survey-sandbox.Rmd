@@ -39,7 +39,7 @@ With Summer Flounder stock assessment data and NEFSC Trawl dimensions and select
 g <- make_grid(res = c(10, 10), n_div = 4, strat_splits = 2,
                shelf_depth = 100, shelf_width = 80, depth_range = c(10, 375))
 
-pop_dist <- sim_abundance(ages = 0:7, years = 1:10,
+pop_dist1 <- sim_abundance(ages = 0:7, years = 1:10,
                            R = sim_R(log_mean = log(mean(Rec_age0)), log_sd = 0.001, plot = TRUE),
                            Z = sim_Z(log_mean = log(mean(Z)), log_sd = 0.001, plot = TRUE),
                            growth = sim_vonB(Linf = 83.6, K = 0.14, plot = TRUE)) |>
@@ -52,7 +52,7 @@ pop_dist <- sim_abundance(ages = 0:7, years = 1:10,
 # pop_dist$N_at_length <- pop_dist$N_at_length * (10^8)
 
 
-pop_dist |>
+pop_dist1 |>
   sim_survey(n_sims = 2,
              trawl_dim = c(0.014, 0.19),
              q = sim_logistic(k = 2, x0 = 2.5))
@@ -65,7 +65,7 @@ With Summer Flounder stock assessment data and NEFSC Trawl dimensions and select
 ```{r}
 survey_grid <- survey_grid #save package grid into R environment
 
-pop_dist <- sim_abundance(ages = 0:7, years = 1:10,
+pop_dist2 <- sim_abundance(ages = 0:7, years = 1:10,
                            R = sim_R(log_mean = log(mean(Rec_age0)), log_sd = 0.001, plot = TRUE),
                            Z = sim_Z(log_mean = log(mean(Z)), log_sd = 0.001, plot = TRUE),
                            growth = sim_vonB(Linf = 83.6, K = 0.14, plot = TRUE)) |>
@@ -74,12 +74,30 @@ pop_dist <- sim_abundance(ages = 0:7, years = 1:10,
                               depth_par = sim_parabola(mu = 71.79,
                                                        sigma = 52.92))
 
-pop_dist |>
+pop_dist2 |>
   sim_survey(n_sims = 2,
              trawl_dim = c(0.014, 0.19),
              q = sim_logistic(k = 2, x0 = 2.5))
 
 ```
+
+# With sdmTMB grid
+```{r}
+pop_dist3 <- sim_abundance(ages = 0:7, years = 1:10,
+                           R = sim_R(log_mean = log(mean(Rec_age0)), log_sd = 0.001, plot = TRUE),
+                           Z = sim_Z(log_mean = log(mean(Z)), log_sd = 0.001, plot = TRUE),
+                           growth = sim_vonB(Linf = 83.6, K = 0.14, plot = TRUE)) |>
+             sim_distribution(grid = sdmtmb_stck,
+                              ays_covar = sim_ays_covar(range = 89.5),
+                              depth_par = sim_parabola(mu = 71.79,
+                                                       sigma = 52.92))
+
+pop_dist3 |>
+  sim_survey(n_sims = 2,
+             trawl_dim = c(0.014, 0.19),
+             q = sim_logistic(k = 2, x0 = 2.5))
+```
+
 
 
 # Hardwire Summer flounder sdmTMB data 
