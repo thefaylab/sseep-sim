@@ -26,7 +26,7 @@ theme_set(theme_bw())
 
 #sdmtmb.dir <- "../sseep-analysis/sdmtmb"
 #sseep.dir <- "../sseep-analysis"
-#utm_proj <- "+proj=utm +zone=18 +ellps=WGS84 +datum=WGS84 +units=km +no_defs"
+utm_proj <- "+proj=utm +zone=18 +ellps=WGS84 +datum=WGS84 +units=km +no_defs"
 
 ## LOAD DATA ####
 strata <- sf::st_read(here("gis", "NEFSC_BTS_AllStrata_Jun2022.shp")) %>%
@@ -34,6 +34,9 @@ strata <- sf::st_read(here("gis", "NEFSC_BTS_AllStrata_Jun2022.shp")) %>%
 
 # read in wind areas where they are one large polygon
 wind_areas <- sf::st_read(here("gis", "wind_areas_merge2023.shp"))
+
+# read in east coastline
+east_coast <- sf::st_read(here("gis", "eastern_coast_UTM.shp"))
 
 ### DATA WRANGLE ####
 # IMPORTANT STEP: turn into UTMs first
@@ -89,21 +92,25 @@ ggplot() +
   geom_sf(data = strata_utm) +
   geom_sf(data = selected_grid, fill = NA)
 
+# find the intersection of each cell based on the largest overlap within a given stratum and join that stratum data
 join <- sf::st_join(selected_grid, strata_utm, largest = TRUE) |>
-  mutate(cell = seq(1:length(geometry)))
+  mutate(cell = seq(1:length(geometry))) # add cell value which is referenced in SimSurvey functions
 
+# plot
 ggplot() +
   geom_sf(data = strata_utm) +
   geom_sf(data = join, fill = NA)
 
 ## CREATE WIND ID ####
+# combine multipolygons for faster intersect calculation
 wind_utm_union <- sf::st_union(wind_utm)
 
-join_strat$AREA_CODE <- st_intersects(join_strat, wind_utm_union) |>
+# find the intersection of each cell based on its intersection within a given wind polygon; if intersects, value > 0
+join$AREA_CODE <- st_intersects(join, wind_utm_union) |>
   as.integer() |>
-  dplyr::coalesce(2L)
+  dplyr::coalesce(2L) # find NAs within column and replace with the number 2 to represent the "outside wind area" ID
 
-## EXTRACT BATHYMETRIC DATA ####
+### EXTRACT BATHYMETRIC DATA ####
 # use the marmap package to pull the bathymetric data from NOAA's database based on our survey area
 bts <- getNOAA.bathy(lon1 = -80, lon2 = -60,
                      lat1 = 32, lat2 = 46,
@@ -122,18 +129,18 @@ st_crs(bathy_grid) <- st_crs(strata)
 bathy_grid <- st_transform(bathy_grid, crs = 32618)
 
 # spatial join the grid with the depth points to find all the depth points in a given cell
-bathy_intersect <- sf::st_join(join_strat, bathy_grid, left = FALSE) |> # inner spatial join
+bathy_intersect <- sf::st_join(join, bathy_grid, left = FALSE) |> # inner spatial join
   group_by(cell) |>
   summarise(AVGDEPTH = mean(depth)) # find the average depth in each cell
 
 # plot it
 ggplot() +
   geom_sf(data = strata_utm) +
-  geom_sf(data = bathy_intersect)
+  geom_sf(data = bathy_intersect, aes(fill = AVGDEPTH))
 
 
-## REMOVE LAND CELLS IN THE GRID ####
-# identify cells that intersect with the east coastline
+### REMOVE LAND CELLS IN THE GRID ####
+# identify cells that are completely within the east coastline; if intersects, values > 0
 land_cells <- st_within(bathy_intersect, east_coast)
 
 # remove the land cells
@@ -145,7 +152,7 @@ ggplot() +
   #geom_sf(data = strata_utm) +
   geom_sf(data = bathy_intersect, fill = NA)
 
-## EXTRACT CENTROID COORDINATES OF GRID ####
+### EXTRACT CENTROID COORDINATES OF GRID ####
 # find the center points of each grid cell, extract the coordinates, and bind back cells and depths
 grid_coords <- bathy_intersect |>
   sf::st_centroid() |>
@@ -166,19 +173,19 @@ ggplot() +
   geom_tile(data = grid_coords, aes(X, Y), width = grid_spacing, height = grid_spacing, colour = NA, alpha = 0.5) +
   coord_sf()
 
-## FINAL MERGE ####
+### FINAL MERGE ####
 # create dataframe of cells and keep important data columns
 join_df <- join |>
   st_set_geometry(NULL) |>
   dplyr::select(STRATUM, cell, AREA_CODE)
 
-# join merge data frames to combine all final columns, add AREA_CODE for metadata
+# join merge data frames to combine all final columns,
 survey_grid <- grid_coords |>
   left_join(join_df, by = "cell") |>
-  mutate(AREA = case_when(
+  mutate(AREA = case_when(          #add AREA_CODE for metadata
     AREA_CODE == 1 ~ "WIND",
     AREA_CODE == 2 ~ "OUTSIDE"),
-    AVGDEPTH = AVGDEPTH * (-1))
+    AVGDEPTH = AVGDEPTH * (-1))     #multiply depths by -1 to match depth values used in BTS data
 
 # plot it
 ggplot(survey_grid, aes(X, Y, fill = as.factor(AREA))) +
@@ -186,10 +193,18 @@ ggplot(survey_grid, aes(X, Y, fill = as.factor(AREA))) +
   scale_fill_discrete() +
   coord_equal()
 
-## SAVE THE FINAL GRID ####
+### SAVE GRID ####
 saveRDS(survey_grid, here("data", "survey_grid.rds"))
 
+## CONVERT GRID FOR USE IN SIMSURVEY FNS ####
+# first to raster
+#grid_ras <- raster::rasterFromXYZ(survey_grid, crs = utm_proj)
 
+# then to RasterStack
+#sdmtmb_stck <- stack(survey_grid)
+
+# save the RasterStack file
+#writeRaster(sdmtmb_ras, filename = here("data", "survey_grid.grd"))
 
 # ggplot() +
 #   geom_sf(data = strata_utm, fill = "yellow") +
