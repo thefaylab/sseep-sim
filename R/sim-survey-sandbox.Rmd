@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(raster)
 library(SimSurvey)
 suppressPackageStartupMessages(library(tidyverse))
+library(data.table)
 library(patchwork)
 library(here)
 
@@ -80,25 +81,28 @@ pop_dist2 <- sim_abundance(ages = 0:7, years = 1:10,
                               depth_par = sim_parabola(mu = 71.79,      # value pulled from Summer flounder sdmtmb model
                                                        sigma = 52.92))  # value pulled from Summer flounder sdmtmb model
 
-pop_dist2 |>
+profvis::profvis(pop_dist2 |>
   sim_survey(n_sims = 2,
-             trawl_dim = c(0.014, 0.19),
-             q = sim_logistic(k = 2, x0 = 2.5))
+             trawl_dim = c(0.012, 0.014),
+             q = sim_logistic(k = 2, x0 = 2.5)))
 
 ```
 
 # With sdmTMB grid
 ```{r}
 # load the sdmtmb grid
-grid <- readRDS(file = here("data", "survey_grid.rds")) |>
+grid <- readRDS(file = here(sdmtmb.dir, "data", "survey_grid.rds")) |>
   rename(strat = STRATUM, 
          depth = AVGDEPTH) |>
   mutate(division = 1, 
-         X = X/1000, 
-         Y = Y/1000) |>
-  dplyr::select(X, Y, cell, division, strat, depth)
+         x = X/1000, 
+         y = Y/1000) |>
+  dplyr::select(x, y, cell, division, strat, depth) |>
+  as.data.frame()
 
-grid_ras <- rasterFromXYZ(grid, crs = 32618)
+crs <-  "+proj=utm +zone=18 +datum=WGS84 +units=km +no_defs"
+
+grid_ras <- rasterFromXYZ(grid, crs = crs)
 grid_stck <- stack(grid_ras)
 
 pop_dist3 <- sim_abundance(ages = 0:7, years = 1:10,
@@ -112,9 +116,12 @@ pop_dist3 <- sim_abundance(ages = 0:7, years = 1:10,
 
 surv_dat <- pop_dist3 |>
   sim_survey(n_sims = 2,
-             trawl_dim = c(0.014, 0.19),
+             trawl_dim = c(1.85, 0.014), # distance towed, trawl width; km
              q = sim_logistic(k = 2, x0 = 2.5), 
-             resample_cells = TRUE)
+             resample_cells = TRUE, 
+             set_den = 0.0025)
+# htmlwidgets::saveWidget(p, "profile.html")
+# browseURL("profile.html")
 ```
 
 ## Calculate Stratified Mean Abundance Index 
@@ -131,10 +138,10 @@ x <- data |>
 
 individual <- data |>
     group_by(strat, year, sim) |>
-    summarise(towct = length(set), # calculate unique tows
+    dplyr::summarise(towct = length(set), # calculate unique tows
               mu = sum(N)/towct, # find the average biomass based on unique tows rather than observations to avoid potential duplication
               var = ifelse(towct == 1, 0, # if the tow count equals 1, then variance about the mean should be 0
-                           sum((N - mu)^2)/(towct - 1))) # if tow count does not equal 1, then find the variance of biomass
+                           sum((N - mu)^2)/(towct - 1)), .groups = "keep") # if tow count does not equal 1, then find the variance of biomass
 weighted <- individual |>
     left_join(strata_wts, by = "strat") |> # add each stratum area and relative weight to the dataset based on STRATUM number
       group_by(strat, year, sim) |>
@@ -148,7 +155,7 @@ BTSArea <- as.integer(sum(strata_wts$Area_SqNm))
 stratified <- weighted |>
     group_by(year, sim) |>
     summarise(stratmu = (sum(wt_mu)) / BTSArea, # part two of the stratified mean formula
-              stratvar = sum(wt_var)) |>
+              stratvar = sum(wt_var), .groups = "keep") |>
   mutate(sdlog = sqrt(log(1+(sqrt(stratvar)/stratmu)^2)), #logistic standard deviation
          lower = qlnorm(0.025, log(stratmu), sdlog), # lower quantile of the logistic normal distribution
          upper = qlnorm(0.975, log(stratmu), sdlog)) |> # upper quantile of the logistic normal distribution
@@ -195,18 +202,17 @@ sim_plot + obs_plot
 ## Set up the Data
 ```{r}
 #### LOAD DATA ####
-sdmtmb.dir <- "../sseep-analysis/sdmtmb"
+#sdmtmb.dir <- "../sseep-analysis/sdmtmb"
 
 # load spring model predictions
-spring_preds <- readRDS(file = here(sdmtmb.dir, "data", "spring_preds.rds"))
+spring_preds <- readRDS(file = here(sdmtmb.dir, "data", "spring_projects.rds"))
 
 # filter distribution predictions for last 5 years
 preds_5yr<- spring_preds |>
   filter(EST_YEAR %in% c(2017:2021)) |>
-  rename(N_dist = est,
-         year = EST_YEAR) |>
-  dplyr::select(c(X,Y, year, N_dist)) |>
-  mutate(year = case_when(
+  rename(year = EST_YEAR) |>
+   mutate(N_dist = exp(est), 
+         year = case_when(
     year == 2017 ~ 1, 
     year == 2018 ~ 2, 
     year == 2019 ~ 3, 
@@ -214,6 +220,7 @@ preds_5yr<- spring_preds |>
     year == 2021 ~ 5
   ),
          cell = seq(1:length(N_dist))) |>
+  dplyr::select(c(X,Y, year, N_dist, cell)) |>
   data.table::as.data.table()
 ```
 
@@ -237,28 +244,33 @@ names(pop)[[10]] <- "grid"
 # resave dataframe grid to match dummy data grid
 grid_xy <- grid |>
  # dplyr::select(X, Y, depth, division, strat) |>
-  rename(x = X, y = Y)# |>
+  #rename(x = X, y = Y) |>
+  data.table::as.data.table()
   #mutate(cell = seq(1:length(depth)))
 
 # append to the simulated abundance object
 pop <- append(pop, list(grid_xy))
+
 names(pop)[[11]] <- "grid_xy"
 
 # calculate numbers at age in each cell based on the year distribution
 dist <- sdmTMB::replicate_df(preds_5yr, "age", c(0:7)) |>
   left_join(Nage, by = "age") |>
-  rename(Nage = "pop$N0") |>
-  mutate(N_dist = exp(N_dist),
-         P_i = N_dist/sum(N_dist),
-         N = Nage * P_i) |>
-  dplyr::select(age, year, cell, N, X, Y)
+  rename(Nage = "pop$N0", 
+         x = X, 
+         y = Y) |>
+  mutate(P_i = N_dist/sum(N_dist),
+         N = Nage * P_i, 
+         age = as.double(age), 
+         cell = as.double(cell)) |>
+  dplyr::select(age, year, cell, N, x, y)
 
 # append to the simulated abundance object
 pop <- append(pop, list(dist))
 names(pop)[[12]] <- "sp_N"
 
 # plot numbers at age
-ggplot(pop$sp_N) + geom_tile(aes(X, Y, fill = N), width = 10, height = 10) + scale_fill_viridis_c() + facet_wrap(~age)
+ggplot(pop$sp_N) + geom_tile(aes(x, y, fill = N), width = 10, height = 10) + scale_fill_viridis_c() + facet_wrap(~age)
 ```
 
 ## Simulate Survey
@@ -268,8 +280,15 @@ ggplot(pop$sp_N) + geom_tile(aes(X, Y, fill = N), width = 10, height = 10) + sca
 #lo_effort <- 
 surv_dat2 <- pop |>
   sim_survey(n_sims = 2,
-             trawl_dim = c(0.014, 0.19),
+             trawl_dim = c(1.85, 0.014),
+             q = sim_logistic(k = 2, x0 = 2.5),
+             resample_cells = TRUE)
+
+surv_dat3 <- pop |>
+  sim_survey(n_sims = 2,
+             trawl_dim = c(1.85, 0.014),
              q = sim_logistic(k = 2, x0 = 2.5), 
+             set_den = 0.02,
              resample_cells = TRUE)
 
 
@@ -292,10 +311,79 @@ surv_dat2 <- pop |>
 ```
 
 
+
+
 ```{r}
-sdmtmb_grid <- readRDS(file = here(sdmtmb.dir, "data", "survey_grid.rds")) |>
-  rename(strat = STRATUM) |>
-  mutate(division = 1)
+data <- surv_dat2$setdet |> as_tibble()
+
+# check individual strata information
+x <- data |>
+    filter(strat==1010, year==1, sim==1)
+
+individual <- data |>
+    group_by(strat, year, sim) |>
+    dplyr::summarise(towct = length(set), # calculate unique tows
+              mu = sum(N)/towct, # find the average biomass based on unique tows rather than observations to avoid potential duplication
+              var = ifelse(towct == 1, 0, # if the tow count equals 1, then variance about the mean should be 0
+                           sum((N - mu)^2)/(towct - 1)), .groups = "keep") # if tow count does not equal 1, then find the variance of biomass
+weighted <- individual |>
+    left_join(strata_wts, by = "strat") |> # add each stratum area and relative weight to the dataset based on STRATUM number
+      group_by(strat, year, sim) |>
+    mutate(wt_mu = Area_SqNm * mu, # part one of the stratified mean formula
+           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm)), 
+           wt_var = ifelse(is.na(wt_var), 0, wt_var)) 
+           # part one of the stratified variance formula
+
+BTSArea <- as.integer(sum(strata_wts$Area_SqNm))
+
+stratified <- weighted |>
+    group_by(year, sim) |>
+    summarise(stratmu = (sum(wt_mu)) / BTSArea, # part two of the stratified mean formula
+              stratvar = sum(wt_var), .groups = "keep") |>
+  mutate(sdlog = sqrt(log(1+(sqrt(stratvar)/stratmu)^2)), #logistic standard deviation
+         lower = qlnorm(0.025, log(stratmu), sdlog), # lower quantile of the logistic normal distribution
+         upper = qlnorm(0.975, log(stratmu), sdlog)) |> # upper quantile of the logistic normal distribution
+  mutate(sdlog = ifelse(is.nan(sdlog), 0, sdlog), # if sdlog is NaN, replace with 0
+         lower = ifelse(is.nan(lower), 0, lower), # if the lower quantile is NaN, replace with 0
+         upper = ifelse(is.nan(upper), 0, upper))
+
+
+sf_stratmu_obs <- readRDS(here("data", "rds", "num-strat-mu_all.rds")) |> 
+  filter(SVSPP == 103, TYPE == "With Wind Included") |> 
+   mutate(sdlog = sqrt(log(1+(sqrt(stratvar)/stratmu)^2)), #logistic standard deviation
+         lower = qlnorm(0.025, log(stratmu), sdlog), # lower quantile of the logistic normal distribution
+         upper = qlnorm(0.975, log(stratmu), sdlog)) |> # upper quantile of the logistic normal distribution
+  mutate(sdlog = ifelse(is.nan(sdlog), 0, sdlog), # if sdlog is NaN, replace with 0
+         lower = ifelse(is.nan(lower), 0, lower), # if the lower quantile is NaN, replace with 0
+         upper = ifelse(is.nan(upper), 0, upper))
+
+
+
+sim_plot <- ggplot() +
+  #geom_point() +
+  geom_pointrange(data = stratified, aes(x = as.factor(year), y = stratmu, color = as.factor(sim), ymin=lower, ymax = upper), position = position_dodge2(width=0.4)) +
+  #facet_wrap(vars(SEASON), scales = "free_y") +
+  #facet_grid(rows = vars(GEO_AREA), cols = vars(SEASON), scales = "free_y") + 
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Simulation") +
+  #ylim(0,NA) +
+  theme_bw() #+ 
+
+obs_plot <-  ggplot() +
+  geom_pointrange(data = sf_stratmu_obs |> filter(EST_YEAR %in% c(2017:2021)), aes(x = as.factor(EST_YEAR), y = stratmu, color = as.factor(SEASON), ymin=lower, ymax = upper), position =  position_dodge2(width=0.4)) +
+  #facet_wrap(vars(SEASON), scales = "free_y") +
+  #facet_grid(rows = vars(GEO_AREA), cols = vars(SEASON), scales = "free_y") + 
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "SEASON") +
+  #ylim(0,NA) +
+  theme_bw()
+
+sim_plot + obs_plot
+```
+
+
+```{r}
+# sdmtmb_grid <- readRDS(file = here(sdmtmb.dir, "data", "survey_grid.rds")) |>
+#   rename(strat = STRATUM) |>
+#   mutate(division = 1)
 ```
 
 
