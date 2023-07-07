@@ -1,5 +1,5 @@
 ### created: 03/15/2023
-### last updated: 04/24/2023
+### last updated: 07/07/2023
 
 #### 01 - MAKE SURVEY GRID ####
 
@@ -192,7 +192,7 @@ ggplot(survey_grid, aes(X, Y, fill = as.factor(AREA))) +
   coord_equal()
 
 ### SAVE GRID ####
-saveRDS(survey_grid, here("data", "survey_grid.rds"))
+saveRDS(survey_grid, here("data", "rds", "survey_grid.rds"))
 
 ## CONVERT GRID FOR USE IN SIMSURVEY FNS ####
 # first to raster
