@@ -1,0 +1,348 @@
+---
+title: "sim-sumflounder"
+author: "Angelia Miller"
+date: "2023-06-27"
+output: html_document
+---
+
+# Objective 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(raster)
+library(SimSurvey)
+suppressPackageStartupMessages(library(tidyverse))
+library(data.table)
+library(patchwork)
+library(here)
+
+sdmtmb.dir <- "../sseep-analysis/sdmtmb"
+sseep.analysis <- "../sseep-analysis"
+```
+
+
+_Stock Assessment Data_
+Recruitment at age 0 and fishing mortality data are pulled from the Summer Flounder Management Track Assessment for 2021 (Table 1). The natural mortality value and Von Bertalanffy growth parameters are pulled from the 66th Stock Assessment Workshop report (2019).
+```{r}
+set.seed(8675309)
+
+## # Recruitment at age 0 for the most recent 5 years, 2015 - 2019; numbers were reported in thousands in the MTA report.
+Rec_age0 <- c(48689, 60598, 44582, 33088, 28416)*1000 
+mean(Rec_age0)
+sd(Rec_age0)
+
+# fishing mortality for the most recent 5 years, 2015 - 2019
+F <- c(0.340, 0.286, 0.331, 0.414, 0.419) 
+
+# natural mortality
+M <- 0.2
+
+#total mortality
+Z <- F + M
+mean(Z)
+sd(Z)
+log(sd(Z))
+
+# Von Bertalanffy growth parameters for both male and female
+Linf = 83.6
+K = 0.14
+
+```
+
+_Survey Grid_
+```{r}
+grid <- readRDS(file = here(sdmtmb.dir, "data", "survey_grid.rds")) |>
+  rename(strat = STRATUM, 
+         depth = AVGDEPTH) |>
+  mutate(division = 1, 
+         x = X/1000, 
+         y = Y/1000) |>
+  dplyr::select(x, y, cell, division, strat, depth) |>
+  as.data.frame()
+
+crs <-  "+proj=utm +zone=18 +datum=WGS84 +units=km +no_defs"
+
+grid_ras <- rasterFromXYZ(grid, crs = crs)
+grid_stck <- stack(grid_ras)
+
+ggplot(grid) + geom_tile(aes(x, y), width = 10, height = 10)
+
+```
+
+
+
+_Spatial Distribution Predictions_ 
+Historical summer flounder biomass catch rate data was used to fit a spatiotemporal GLMM with the sdmTMB package. The expected biomass catch rates predicted from the model fit was extracted for the most recent 5 years of the time series.  
+```{r}
+# load spring model predictions
+spring_preds <- readRDS(file = here(sdmtmb.dir, "data", "spring_projects.rds"))
+
+# filter distribution predictions for last 5 years
+preds_5yr<- spring_preds |>
+  filter(EST_YEAR %in% c(2017:2021)) |>
+  rename(year = EST_YEAR) |>
+   mutate(N_dist = exp(est), 
+         year = case_when(
+    year == 2017 ~ 1, 
+    year == 2018 ~ 2, 
+    year == 2019 ~ 3, 
+    year == 2020 ~ 4, 
+    year == 2021 ~ 5
+  ),
+         cell = seq(1:length(N_dist))) |>
+  dplyr::select(c(X,Y, year, N_dist, cell)) |>
+  data.table::as.data.table()
+
+ggplot(preds_5yr) + 
+  geom_tile(aes(X, Y, fill = N_dist), width = 10, height = 10) +
+  scale_fill_viridis_c() + 
+  facet_wrap(~year) + 
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Summer Flounder") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+```
+
+
+# Simulate Abundance 
+```{r}
+pop <- sim_abundance(ages = 0:7, years = 1:5,
+                     R = sim_R(log_mean = log(mean(Rec_age0)), log_sd = 0.001, plot = TRUE),
+                     Z = sim_Z(log_mean = log(mean(Z)), log_sd = 0.001, plot = TRUE),
+                     growth = sim_vonB(Linf = 83.6, K = 0.14, plot = TRUE)) 
+Nage <- tibble(age = 0:7, pop$N0)
+plot_surface(pop, mat = "N")
+
+saveRDS(pop, here("data", "rds", "sumflounder_abundance.rds"))
+```
+
+
+# Append the simulated abundance 
+```{r}
+# append  to abundance and rename list item
+pop <- append(pop,grid_stck) # use RasterStack object of sdmtmb grid
+names(pop)[[10]] <- "grid"
+
+# resave dataframe grid to match dummy data grid
+grid_xy <- grid |>
+ # dplyr::select(X, Y, depth, division, strat) |>
+  #rename(x = X, y = Y) |>
+  data.table::as.data.table()
+  #mutate(cell = seq(1:length(depth)))
+
+# append to the simulated abundance object
+pop <- append(pop, list(grid_xy))
+
+names(pop)[[11]] <- "grid_xy"
+
+# calculate numbers at age in each cell based on the year distribution
+dist <- sdmTMB::replicate_df(preds_5yr, "age", c(0:7)) |>
+  left_join(Nage, by = "age") |>
+  rename(Nage = "pop$N0", 
+         x = X, 
+         y = Y) |>
+  mutate(P_i = N_dist/sum(N_dist), # probability of distribution
+         N = Nage * P_i, # multiply probability by simulated numbers of age
+         age = as.double(age), 
+         cell = as.double(cell)) |>
+  dplyr::select(age, year, cell, N, x, y)
+
+# append to the simulated abundance object
+pop <- append(pop, list(dist))
+names(pop)[[12]] <- "sp_N"
+
+saveRDS(pop, here("data", "rds", "sumflounder_dist.rds"))
+
+# plot numbers at age
+ggplot(pop$sp_N) + 
+  geom_tile(aes(x, y, fill = N), width = 10, height = 10) +
+  scale_fill_viridis_c() + 
+  facet_wrap(~age) + 
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Summer Flounder") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+```
+
+# Simulate Survey
+```{r}
+
+surv_dat3 <- pop |>
+  sim_survey(n_sims = 2,
+             trawl_dim = c(1.5, 0.014),
+             q = sim_logistic(k = 2, x0 = 2.5), #if plot = TRUE, xlim errors
+             set_den = 0.0025,
+             resample_cells = TRUE)
+
+saveRDS(surv_dat3, here("data", "rds", "sumflounder_survdat.rds"))
+
+```
+
+
+# Compare stratified index of abundance
+
+```{r}
+# read in the area weights for each strata 
+strata_wts <- readRDS(here(sseep.analysis, "data", "rds", "strata_wts.rds")) |>
+  rename(strat = STRATUM)
+```
+
+
+```{r}
+# pull out the simulated numbers of summer flounder from the survey
+data <- surv_dat3$setdet |> as_tibble()
+
+# check individual strata information
+x <- data |>
+    filter(strat==1010, year==1, sim==1)
+
+# calculate the individual mean abundance in each strata for each year and simulation
+individual <- data |>
+    group_by(strat, year, sim) |>
+    dplyr::summarise(towct = length(set), # calculate unique tows
+              mu = sum(N)/towct, # find the average biomass based on unique tows rather than observations to avoid potential duplication
+              var = ifelse(towct == 1, 0, # if the tow count equals 1, then variance about the mean should be 0
+                           sum((N - mu)^2)/(towct - 1)), .groups = "keep") # if tow count does not equal 1, then find the variance of biomass
+
+# caluclate the weighted average by multiplying by each stratas proportional area
+weighted <- individual |>
+    left_join(strata_wts, by = "strat") |> # add each stratum area and relative weight to the dataset based on STRATUM number
+      group_by(strat, year, sim) |>
+    mutate(wt_mu = Area_SqNm * mu, # part one of the stratified mean formula
+           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm)), 
+           wt_var = ifelse(is.na(wt_var), 0, wt_var)) 
+           # part one of the stratified variance formula
+
+# find the total survey area 
+BTSArea <- as.integer(sum(strata_wts$Area_SqNm))
+
+# calculated the stratified average and the standard deviations around the average 
+stratified <- weighted |>
+    group_by(year, sim) |>
+    summarise(stratmu = (sum(wt_mu)) / BTSArea, # part two of the stratified mean formula
+              stratvar = sum(wt_var), .groups = "keep") |>
+  mutate(sdlog = sqrt(log(1+(sqrt(stratvar)/stratmu)^2)), #logistic standard deviation
+         lower = qlnorm(0.025, log(stratmu), sdlog), # lower quantile of the logistic normal distribution
+         upper = qlnorm(0.975, log(stratmu), sdlog)) |> # upper quantile of the logistic normal distribution
+  mutate(sdlog = ifelse(is.nan(sdlog), 0, sdlog), # if sdlog is NaN, replace with 0
+         lower = ifelse(is.nan(lower), 0, lower), # if the lower quantile is NaN, replace with 0
+         upper = ifelse(is.nan(upper), 0, upper))
+
+# read in the summer flounder indices of abundance calculated from the observed historical data 
+sf_stratmu_obs <- readRDS(here("data", "rds", "num-strat-mu_all.rds")) |> 
+  filter(SVSPP == 103, TYPE == "With Wind Included") |> 
+   mutate(sdlog = sqrt(log(1+(sqrt(stratvar)/stratmu)^2)), #logistic standard deviation
+         lower = qlnorm(0.025, log(stratmu), sdlog), # lower quantile of the logistic normal distribution
+         upper = qlnorm(0.975, log(stratmu), sdlog)) |> # upper quantile of the logistic normal distribution
+  mutate(sdlog = ifelse(is.nan(sdlog), 0, sdlog), # if sdlog is NaN, replace with 0
+         lower = ifelse(is.nan(lower), 0, lower), # if the lower quantile is NaN, replace with 0
+         upper = ifelse(is.nan(upper), 0, upper))
+
+
+# create a plot of the indices of abundance from the simulated data 
+sim_plot <- ggplot() +
+  #geom_point() +
+  geom_pointrange(data = stratified, aes(x = as.factor(year), y = stratmu, color = as.factor(sim), ymin=lower, ymax = upper), position = position_dodge2(width=0.4)) +
+  #facet_wrap(vars(SEASON), scales = "free_y") +
+  #facet_grid(rows = vars(GEO_AREA), cols = vars(SEASON), scales = "free_y") + 
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Simulation", 
+       title = "Simulated Abundance Index") +
+  #ylim(0,NA) +
+  theme_bw() #+ 
+
+# create a plot of the indices of abundance from the observed data 
+obs_plot <-  ggplot() +
+  geom_pointrange(data = sf_stratmu_obs |> filter(EST_YEAR %in% c(2017:2021), SEASON == "SPRING"), aes(x = as.factor(EST_YEAR), y = stratmu, color = as.factor(SEASON), ymin=lower, ymax = upper), position =  position_dodge2(width=0.4)) +
+  #facet_wrap(vars(SEASON), scales = "free_y") +
+  #facet_grid(rows = vars(GEO_AREA), cols = vars(SEASON), scales = "free_y") + 
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Season", title = "Observed Abundance Index") +
+  #ylim(0,NA) +
+  theme_bw()
+
+# plot the two plots side by side 
+sim_plot + obs_plot & theme(legend.position = "bottom")
+```
+
+# Run stratified analysis on simulated data
+```{r}
+strat <- surv_dat3 |> 
+  run_strat() |> 
+  strat_error()
+```
+
+
+# Performance Measures 
+
+
+## Mean length
+- Bias & precision in mean length
+- Average sampling error for mean length
+- Adequacy of coverage of length distribution
+
+True value for mean length - Using the simulated numbers at length from the population dynamics model
+```{r}
+true_length <- as.data.frame(surv_dat3[["N_at_length"]]) |> 
+  rownames_to_column(var = "length_cm") |> 
+  pivot_longer(cols = 2:6, names_to = "year", values_to = "N") |>
+  mutate(length_cm = as.numeric(length_cm), 
+         N = round(N, 2))
+
+true_length |> 
+  group_by(year) |>
+  summarise(avg = mean(N)) |> 
+  ggplot() + 
+  geom_col(aes(x = year, y = avg))
+
+ggplot(true_length) +
+  geom_point(aes(x=length_cm, y = N, fill = year))+ 
+  facet_wrap(~year)
+
+#factor(avail_length$length_mm)
+
+
+```
+
+
+simulated mean length from survey
+- bias = true value of population minus predicted value
+- precision 
+```{r}
+mean(surv_dat3[["samp"]][["length"]])
+var(surv_dat3[["samp"]][["length"]])
+```
+
+
+
+
+## Mean Age
+- Bias & precision in mean age
+- Average sampling error for mean age
+- Adequacy of coverage of age distribution
+
+From the simulated population dynamics model, se the numbers at age available to the survey
+```{r}
+avail_age <- as.data.frame(surv_dat3[["I"]]) |> 
+  rownames_to_column(var = "ages") |> 
+  pivot_longer(cols = 2:6, names_to = "year", values_to = "N")
+
+avail_age |> 
+  group_by(ages) |>
+  summarise(avg = mean(N)) |> 
+  ggplot() + 
+  geom_col(aes(x = ages, y = avg))
+
+
+```
+
+
+simulated mean age from the survey
+```{r}
+mean(surv_dat3[["samp"]][["age"]])
+```
+
+
+## Relative abundance of smoll fish
+- Bias & precision in relative abundance of smoll fish over time
+- Bias & precision in change in relative abundance of smoll fish over time
+- Average sampling error for mean catch rate of smoll fish
