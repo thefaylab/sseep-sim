@@ -196,6 +196,20 @@ estN_strat |>
 
 ```
 
+## Bias
+```{r}
+diff <- estN_strat |> 
+  #rename(replicate = "sim") |>
+  group_by(sim, year) |> 
+  summarise(diff = stratmu - trueN_stratmu)
+
+diff |> 
+  group_by(sim) |>
+  summarise(bias = sum(diff)/length(diff))
+
+```
+
+
 
 ```{r save data, include = FALSE}
 # saveRDS(trueN_strat, here("R", "sumflounder", "data", "sumflounder_trueN-strat.rds"))
