@@ -1,0 +1,208 @@
+---
+title: "Performance measure: relative abundance over time"
+author: "Angelia Miller"
+date: "2023-07-25"
+output: html_document
+---
+
+## Objective
+Script will compare the abundance indices simulated by the outputs from `01-simulate-sumflounder-abund.Rmd` and `02-append-sumflounder-dist.Rmd`, assumed as the true abundance index, to the abundance indices estimated by simulating the survey across the simulated population.
+
+Output: true and estimated stratified abundance indices, bias and precision of those abundance indices
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(raster)
+library(SimSurvey)
+suppressPackageStartupMessages(library(tidyverse))
+library(data.table)
+library(patchwork)
+library(here)
+
+sseep.analysis <- "../sseep-analysis"
+```
+
+
+### Load Data 
+```{r}
+# read in survey data 
+surv_dat <- readRDS(here("R", "sumflounder", "data", "sumflounder_survdat.rds"))
+
+# read in the area weights for each strata 
+strata_wts <- readRDS(here(sseep.analysis, "data", "rds", "active_strata_wts.rds")) |>
+  rename(strat = STRATUM)
+
+# find the total survey area 
+BTSArea <- as.integer(sum(strata_wts$Area_SqNm))
+```
+
+
+## True Abundance 
+Output from sim_abundance and sim_distribution
+```{r}
+# subset data based on sim_distribution output
+true_N <- surv_dat$sp_N |> as_tibble() |>
+  full_join(grid_xy, by = c("cell", "strat", "x", "y"))
+
+# calculate the individual mean abundance in each strata for each year and simulation
+trueN_ind <- true_N |>
+    group_by(strat, year) |>
+    dplyr::summarise(towct = length(N), # calculate unique tows
+                     mu = sum(N, na.rm = TRUE)/towct, # find the average biomass based on unique tows rather than observations to avoid potential duplication
+                     var = ifelse(towct == 1, 0, # if the tow count equals 1, then variance about the mean should be 0
+                                  sum((N - mu)^2, na.rm = TRUE)/(towct - 1)), 
+                     .groups = "keep") # if tow count does not equal 1, then find the variance of biomass
+
+# caluclate the weighted average by multiplying by each stratas proportional area
+trueN_wtd <- trueN_ind |>
+    left_join(strata_wts, by = "strat") |> # add each stratum area and relative weight to the dataset based on STRATUM number
+      group_by(strat, year) |>
+    mutate(wt_mu = Area_SqNm * mu, # part one of the stratified mean formula
+           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm)), 
+           wt_var = ifelse(is.na(wt_var), 0, wt_var)) 
+           # part one of the stratified variance formula
+
+# calculated the stratified average and the standard deviations around the average 
+trueN_strat <- trueN_wtd |>
+    group_by(year) |>
+    summarise(stratmu = (sum(wt_mu)) / BTSArea, # part two of the stratified mean formula
+              stratvar = sum(wt_var), .groups = "keep") |>
+  mutate(sdlog = sqrt(log(1+(sqrt(stratvar)/stratmu)^2)), #logistic standard deviation
+         lower = qlnorm(0.025, log(stratmu), sdlog), # lower quantile of the logistic normal distribution
+         upper = qlnorm(0.975, log(stratmu), sdlog)) |> # upper quantile of the logistic normal distribution
+  mutate(sdlog = ifelse(is.nan(sdlog), 0, sdlog), # if sdlog is NaN, replace with 0
+         lower = ifelse(is.nan(lower), 0, lower), # if the lower quantile is NaN, replace with 0
+         upper = ifelse(is.nan(upper), 0, upper), 
+         TYPE = "True",
+         sim = 1) |>
+  na.omit()
+
+```
+
+Plot of true abundance over time
+```{r}
+# create a plot of the indices of abundance from the observed data 
+trueN_plot <- ggplot() +
+  geom_pointrange(data = trueN_strat, 
+                  aes(x = as.factor(year), y = stratmu, ymin=lower, ymax = upper), 
+                  position = position_dodge2(width=0.4)) +
+  #facet_wrap(vars(SEASON), scales = "free_y") +
+  #facet_grid(rows = vars(GEO_AREA), cols = vars(SEASON), scales = "free_y") + 
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Season", title = "Observed Abundance Index") +
+  #ylim(0,NA) +
+  theme_bw()
+
+trueN_plot
+
+```
+
+
+
+## Estimated Abundance
+Bias - variance
+precision - CV = sd/mu
+```{r}
+# pull out the simulated numbers of summer flounder from the survey
+est_N <- surv_dat$setdet |> as_tibble()
+
+# check individual strata information
+# x <- setdet |>
+#     filter(strat==1010, year==1, sim==1)
+
+# calculate the individual mean abundance in each strata for each year and simulation
+estN_ind <- est_N |>
+    group_by(strat, year, sim) |>
+    dplyr::summarise(towct = length(set), # calculate unique tows
+              mu = sum(N)/towct, # find the average biomass based on unique tows rather than observations to avoid potential duplication
+              var = ifelse(towct == 1, 0, # if the tow count equals 1, then variance about the mean should be 0
+                           sum((N - mu)^2)/(towct - 1)), .groups = "keep") # if tow count does not equal 1, then find the variance of biomass
+
+# caluclate the weighted average by multiplying by each stratas proportional area
+estN_wtd <- estN_ind |>
+    left_join(strata_wts, by = "strat") |> # add each stratum area and relative weight to the dataset based on STRATUM number
+      group_by(strat, year, sim) |>
+    mutate(wt_mu = Area_SqNm * mu, # part one of the stratified mean formula
+           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm)), 
+           wt_var = ifelse(is.na(wt_var), 0, wt_var)) 
+           # part one of the stratified variance formula
+
+# calculated the stratified average and the standard deviations around the average 
+estN_strat <- estN_wtd |>
+    group_by(year, sim) |>
+    summarise(stratmu = (sum(wt_mu)) / BTSArea, # part two of the stratified mean formula
+              stratvar = sum(wt_var), .groups = "keep") |>
+  mutate(sdlog = sqrt(log(1+(sqrt(stratvar)/stratmu)^2)), #logistic standard deviation
+         lower = qlnorm(0.025, log(stratmu), sdlog), # lower quantile of the logistic normal distribution
+         upper = qlnorm(0.975, log(stratmu), sdlog)) |> # upper quantile of the logistic normal distribution
+  mutate(sdlog = ifelse(is.nan(sdlog), 0, sdlog), # if sdlog is NaN, replace with 0
+         lower = ifelse(is.nan(lower), 0, lower), # if the lower quantile is NaN, replace with 0
+         upper = ifelse(is.nan(upper), 0, upper), 
+         TYPE = "Estimated")
+
+```
+
+
+Plot of estimated abundance indices over time for each simulation
+```{r}
+# create a plot of the indices of abundance from the simulated data 
+estN_plot <- ggplot() +
+  #geom_point() +
+  geom_pointrange(data = estN_strat, aes(x = as.factor(year), y = stratmu, color = as.factor(sim), ymin=lower, ymax = upper), position = position_dodge2(width=0.4)) +
+  #facet_wrap(vars(SEASON), scales = "free_y") +
+  #facet_grid(rows = vars(GEO_AREA), cols = vars(SEASON), scales = "free_y") + 
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Simulation", 
+       title = "Simulated Abundance Index") +
+  #ylim(0,NA) +
+  theme_bw() #+ 
+
+estN_plot
+```
+
+## Compare plots
+```{r}
+
+compareN_AI <- bind_rows(trueN_strat, estN_strat)  
+  
+compareN_plot <- ggplot() +
+  #geom_point() +
+  geom_pointrange(data = compareN_AI, aes(x = as.factor(year), y = stratmu, color = as.factor(sim), shape = TYPE, ymin=lower, ymax = upper), position = position_dodge2(width=0.4)) +
+  #facet_wrap(vars(SEASON), scales = "free_y") +
+  #facet_grid(rows = vars(GEO_AREA), cols = vars(SEASON), scales = "free_y") + 
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Simulation", 
+       title = "Simulated Abundance Index") +
+  #ylim(0,NA) +
+  theme_bw() 
+
+compareN_plot
+
+# plot the two plots side by side 
+estN_plot + trueN_plot & theme(legend.position = "bottom")
+
+```
+
+
+## Precision
+ - "the precision of the mean density estimate of species g
+at time t across replicate surveys and is the standard deviation of the simulated survey estimates (where rgt is the mean density estimate of species g at time t averaged across the D surveys) relative to ygt , the true mean density of species g at time t" (Oyafuso et al 2021)
+ - "The True CV (TrueCVst) is the variability of the estimated abundance index across the survey replicates and is defined as the standard deviation of the estimated indices of abundance normalized by the true value" (Oyafuso et al 2023)
+```{r}
+trueN_stratmu <- mean(trueN_strat$stratmu)
+
+estN_strat |>
+  group_by(sim, year) |> 
+  summarise(cv = sqrt(stratvar) / trueN_stratmu)
+
+```
+
+
+```{r save data, include = FALSE}
+# saveRDS(trueN_strat, here("R", "sumflounder", "data", "sumflounder_trueN-strat.rds"))
+# 
+# saveRDS(estN_strat, here("R", "sumflounder", "data", "sumflounder_estN-strat.rds"))
+# 
+# saveRDS(compareN_AI, here("R", "sumflounder", "data", "sumflounder_estN-strat.rds"))
+
+```
+

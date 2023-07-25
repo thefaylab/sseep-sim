@@ -1,0 +1,91 @@
+---
+title: "Performance measure: change in relative abundance over time"
+author: "Angelia Miller"
+date: "2023-07-25"
+output: html_document
+---
+
+## Objective 
+Script will compare the change in abundance indices over time between the assumed true abundance indices and the estimated abundance indices calculated from `04a-PM-abund-index.Rmd`. 
+
+Output: linear regression slope estimates for the true and estimated abundance indices. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(raster)
+library(SimSurvey)
+suppressPackageStartupMessages(library(tidyverse))
+library(data.table)
+library(patchwork)
+library(here)
+```
+
+
+### Load Data 
+```{r}
+# read in survey data 
+surv_dat <- readRDS(here("R", "sumflounder", "data", "sumflounder_survdat.rds"))
+
+# read in the area weights for each strata 
+strata_wts <- readRDS(here(sseep.analysis, "data", "rds", "active_strata_wts.rds")) |>
+  rename(strat = STRATUM)
+
+# find the total survey area 
+BTSArea <- as.integer(sum(strata_wts$Area_SqNm))
+```
+
+
+## True Abundance 
+```{r}
+trueN_mod <- lm(stratmu~year, data = trueN_strat) |>
+  broom::tidy(conf.int = TRUE) |> 
+  mutate(TYPE = "True") |> 
+  filter(term == "year")
+
+trueN_mod
+
+```
+
+## Estimated Abundance 
+```{r}
+estN_mod <- estN_strat |>
+  group_by(sim) |>
+  nest() |> 
+  mutate(model = map(data, ~lm(stratmu~year, data =.)), 
+         coef = map(model, broom::tidy, conf.int = TRUE)) |>
+  unnest(coef) |> 
+  mutate(TYPE = str_c("Simulation", sim, sep = " ")) |>
+  filter(term == "year") |>
+  select(!c(data, model))
+
+estN_mod
+
+```
+
+## Slope Comparison
+```{r}
+Nslopes <- bind_rows(trueN_mod, estN_mod)
+
+Nslopes
+
+ggplot(Nslopes) + 
+  geom_pointrange(aes(x = as.factor(TYPE), y = estimate, color = TYPE, ymin=conf.low, ymax = conf.high), position = position_dodge2(width=0.4)) +
+  #facet_wrap(vars(SEASON), scales = "free_y") +
+  #facet_grid(rows = vars(GEO_AREA), cols = vars(SEASON), scales = "free_y") + 
+  labs(x = "Type", y = "Linear Regression Slope Estimates ", color = " ", 
+       title = "Changes in Abundance Indices over time") +
+  #ylim(0,NA) +
+  theme_bw() 
+```
+
+
+```{r save data, include = FALSE}
+# saveRDS(trueN_mod, here("R", "sumflounder", "data", "sumflounder_trueN-mod.rds"))
+# 
+# saveRDS(estN_mod, here("R", "sumflounder", "data", "sumflounder_estN-mod.rds"))
+# 
+# saveRDS(Nslopes, here("R", "sumflounder", "data", "sumflounder_slope-changes.rds"))
+
+```
+
