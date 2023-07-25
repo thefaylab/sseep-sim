@@ -294,6 +294,11 @@ estN_strat <- estN_wtd |>
          upper = ifelse(is.nan(upper), 0, upper), 
          TYPE = "Estimated")
 
+```
+
+
+Plot of estimated abundance indices over time for each simulation
+```{r}
 # create a plot of the indices of abundance from the simulated data 
 estN_plot <- ggplot() +
   #geom_point() +
@@ -330,7 +335,19 @@ estN_plot + trueN_plot & theme(legend.position = "bottom")
 
 
 ```
+### Precision
+ - "the precision of the mean density estimate of species g
+at time t across replicate surveys and is the standard deviation of the simulated survey estimates (where rgt is the mean density estimate of species g at time t averaged across the D surveys) relative to ygt , the true mean density of species g at time t" (Oyafuso et al 2021)
+ - "The True CV (TrueCVst) is the variability of the estimated abundance index across the survey replicates and is defined as the standard deviation of the estimated indices of abundance normalized by the true value" (Oyafuso et al 2023)
+```{r}
+trueN_stratmu <- mean(trueN_strat$stratmu)
 
+estN_strat |>
+  group_by(sim, year) |> 
+  summarise(cv = sqrt(stratvar) / trueN_stratmu)
+
+
+```
 
 
 ## Change in relative abundance over time
@@ -376,6 +393,24 @@ ggplot(Nslopes) +
        title = "Changes in Abundance Indices over time") +
   #ylim(0,NA) +
   theme_bw() 
+```
+
+
+## Average sampling error of catch rate
+
+Something with strat_sets or cell_sets? 
+```{r}
+# estCR_n <- length(!is.na(setdet$N)) # n = 727
+# 
+# estCR_se <- est_N |> 
+#   group_by(year, sim) |> 
+#   summarise(stratsd = sqrt(stratvar), 
+#             samp_err = 1.96*(stratsd / sqrt(estL_n)))
+# 
+# estL_se |> 
+#   group_by(sim) |>
+#   summarise(avg_se = mean(samp_err))
+
 ```
 
 
@@ -437,13 +472,15 @@ ggplot() +
   theme_bw() 
 ```
 
+
 ### Average sampling error for mean length
 ```{r}
+estL_n <- length(samp$length)
+
 estL_se <- estL_strat |> 
   group_by(year, sim) |> 
-  summarise(n = length(length), 
-            stratsd = sqrt(stratvar), 
-            samp_err = 1.96*(stratsd / sqrt(n)))
+  summarise(stratsd = sqrt(stratvar), 
+            samp_err = 1.96*(stratsd / sqrt(estL_n)))
 
 estL_se |> 
   group_by(sim) |>
