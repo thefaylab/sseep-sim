@@ -1,0 +1,68 @@
+---
+title: "set density for NEFSC BTS survey"
+author: "Catalina Roman"
+date: "2023-05-05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+# Load packages
+library(VAST)
+library(splines)
+library(effects)
+library(rio)
+library(tidyverse)
+library(truncnorm)
+library(R.utils)
+library(data.table)
+library(here)
+library(mgcv)
+library(patchwork)
+```
+
+```{r}
+dat <- readRDS(here("data/rds/merged_data_complete.rds"))
+
+dat <- dat |>
+  mutate(code = str_c(STRATUM, CRUISE6, STATION)) 
+
+dat_n <- dat |>  
+  group_by(SEASON,EST_YEAR) |>
+  summarise(count = n_distinct(code)) |>
+  pivot_wider(names_from = SEASON, values_from = count)
+
+(dat_sum <- dat_n |>
+  mutate(SUMA = rowSums((dat_n[,2:3]), na.rm = TRUE)) |>
+  filter(!EST_YEAR %in% c(2017,2020))) #years removed due to lower number of tows that pull the mean down
+
+summary(dat_sum)
+
+```
+
+```{r}
+
+# load and manipulate the bottom trawl survey strata shapefile
+strata <- sf::st_read(here("gis", "NEFSC-BTS_strata_Jun2022.gdb"), layer = "NEFSC_BTS_ActiveStrata_Jun2022") |>
+  rename(STRATUM = Strata_Num) |>
+  dplyr::select(STRATUM, Area_SqNm) |> # select variables to be used in calculations below
+  sf::st_set_geometry(NULL) |> # remove the coordinates; changes the sf to a df
+  unique() |> # identify unique stratum only 
+  mutate(RelWt = Area_SqNm / sum(Area_SqNm)) # calculate the relative weight of each stratum based on its proportion of the total survey footprint area; to be used in later calculations.
+
+sum(strata$Area_SqNm)
+
+```
+
+```{r}
+#density for Fall
+
+345/69114
+
+#density for Spring
+
+335/69114
+
+##SET DENSITY = 0.005 
+
+```
