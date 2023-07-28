@@ -1,0 +1,147 @@
+---
+title: "Append summer flounder distributions"
+author: "Angelia Miller"
+date: "2023-07-25"
+output: html_document
+---
+
+## Objective 
+Script will insert external spatial predictions from sdmTMB from sseep-analysis repo into sim_distribution() and override this part of SimSurvey, thereby hardwiring distribution predictions from sdmTMB. 
+
+Output: appended summer flounder population object from 01-simulate-sumflounder-abund.rmd with numbers at age distributed across the NEUS BTS survey grid 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(raster)
+library(SimSurvey)
+suppressPackageStartupMessages(library(tidyverse))
+library(data.table)
+library(patchwork)
+library(here)
+
+sdmtmb.dir <- "../sseep-analysis/sdmtmb"
+
+set.seed(8675309)
+```
+
+
+```{r data, include = FALSE}
+### LOAD DATA ####
+# the survey Grid
+grid <- readRDS(file = here(sdmtmb.dir, "data", "survey_grid.rds")) |>
+  rename(strat = STRATUM,
+         depth = AVGDEPTH) |>
+  mutate(division = 1,
+         x = X/1000,
+         y = Y/1000) |>
+  dplyr::select(x, y, cell, division, strat, depth) |>
+  as.data.frame()
+
+# load spring model predictions
+spring_preds <- readRDS(file = here(sdmtmb.dir, "data", "spring_projects.rds"))
+
+# load the simulated abundance
+pop <- readRDS(here("R", "sumflounder", "data", "sumflounder_abundance.rds"))
+
+# load the abundance by age
+Nage <- readRDS(here("R", "sumflounder", "data", "sumflounder_Nage.rds"))
+
+### DATA WRANGLE ####
+# set coordinate system
+crs <-  "+proj=utm +zone=18 +datum=WGS84 +units=km +no_defs"
+
+# convert grid to raster for appending to abundance object
+grid_ras <- rasterFromXYZ(grid, crs = crs)
+```
+
+_Spatial Distribution Predictions_ 
+
+Historical summer flounder biomass catch rate data was used to fit a spatiotemporal GLMM with the sdmTMB package. The expected biomass catch rates predicted from the model fit was extracted for the most recent 3 years of the time series. 
+```{r}
+# filter distribution predictions for last 3 years
+preds_3yr <- spring_preds |>
+  filter(EST_YEAR %in% c(2019:2021)) |>
+  rename(year = EST_YEAR,
+         strat = STRATUM) |>
+  mutate(N_dist = exp(est),
+         year = case_when(
+           year == 2019 ~ 1,
+           year == 2020 ~ 2,
+           year == 2021 ~ 3
+         ),
+         cell = seq(1:length(N_dist))) |>
+  dplyr::select(X,Y, year, N_dist, cell, strat) |>
+  data.table::as.data.table()
+
+
+#plot it
+ggplot(preds_3yr) +
+  geom_tile(aes(X, Y, fill = N_dist), width = 10, height = 10) +
+  scale_fill_viridis_c() +
+  facet_wrap(~year) +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Summer Flounder") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+```
+
+
+## Append abundance object 
+
+```{r append grid, include = FALSE}
+# append  to abundance and rename list item
+pop <- append(pop, grid_ras) # use Raster object of sdmtmb grid
+names(pop)[[10]] <- "grid"
+
+# resave dataframe grid to match dummy data grid
+grid_xy <- grid |>
+  # dplyr::select(X, Y, depth, division, strat) |>
+  #rename(x = X, y = Y) |>
+  data.table::as.data.table()
+#mutate(cell = seq(1:length(depth)))
+
+# append to the simulated abundance object
+pop <- append(pop, list(grid_xy))
+names(pop)[[11]] <- "grid_xy"
+```
+
+### Calculate numbers at age 
+in each cell based on the year distribution
+```{r}
+dist <- sdmTMB::replicate_df(preds_3yr, "age", c(0:7)) |>
+  left_join(Nage, by = "age") |>
+  rename(Nage = "pop$N0",
+         x = X,
+         y = Y) |>
+  mutate(P_i = N_dist/sum(N_dist), # probability of distribution
+         N = Nage * P_i, # multiply probability by simulated numbers of age
+         age = as.double(age),
+         cell = as.double(cell)) |>
+  dplyr::select(age, year, cell, N, x, y, strat)
+
+
+# append to the simulated abundance object
+pop <- append(pop, list(dist))
+names(pop)[[12]] <- "sp_N"
+
+
+# plot numbers at age
+ggplot(pop$sp_N) +
+  geom_tile(aes(x, y, fill = N), width = 10, height = 10) +
+  scale_fill_viridis_c(trans = "sqrt") +
+  facet_wrap(~age, scales = "free_y") +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Summer Flounder") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+```
+
+
+```{r, include = FALSE}
+### save the data
+saveRDS(pop, here("R", "sumflounder", "data", "sumflounder_dist.rds"))
+
+```
+

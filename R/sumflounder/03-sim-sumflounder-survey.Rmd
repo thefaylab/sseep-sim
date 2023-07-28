@@ -1,0 +1,46 @@
+---
+title: "Simulate BTS survey on summer flounder"
+author: "Angelia Miller"
+date: "2023-07-25"
+output: html_document
+---
+
+## Objective 
+Simulate the BTS survey over the NEUS survey grid and the distributed summer flounder population. 
+
+Output: survey data containing numbers caught per tow/set, and length and age sampled data 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(raster)
+library(SimSurvey)
+suppressPackageStartupMessages(library(tidyverse))
+library(data.table)
+library(patchwork)
+library(here)
+
+# Load the population abundance and distribution 
+pop <- readRDS(here("R", "sumflounder", "data", "sumflounder_dist.rds"))
+
+set.seed(8675309)
+```
+
+
+## Simulate Survey
+```{r}
+surv_dat <- pop |>
+  sim_survey(n_sims = 2,
+             trawl_dim = c(1.5, 0.014),
+             q = sim_logistic(k = 2, x0 = 2.5), #if plot = TRUE, xlim errors
+             set_den = 0.0025,
+             resample_cells = TRUE)
+```
+
+
+```{r, include = FALSE}
+# saveRDS(surv_dat, here("R", "sumflounder", "data", "sumflounder_survdat.rds"))
+
+```
+
