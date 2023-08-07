@@ -8,17 +8,18 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 # Load packages
-library(VAST)
-library(splines)
-library(effects)
-library(rio)
+#library(VAST)
+#library(splines)
+#library(effects)
+#library(rio)
 library(tidyverse)
-library(truncnorm)
-library(R.utils)
+#library(truncnorm)
+#library(R.utils)
 library(data.table)
 library(here)
-library(mgcv)
+#library(mgcv)
 library(patchwork)
+library(sf)
 ```
 
 ```{r}
@@ -43,26 +44,29 @@ summary(dat_sum)
 ```{r}
 
 # load and manipulate the bottom trawl survey strata shapefile
-strata <- sf::st_read(here("gis", "NEFSC-BTS_strata_Jun2022.gdb"), layer = "NEFSC_BTS_ActiveStrata_Jun2022") |>
-  rename(STRATUM = Strata_Num) |>
-  dplyr::select(STRATUM, Area_SqNm) |> # select variables to be used in calculations below
-  sf::st_set_geometry(NULL) |> # remove the coordinates; changes the sf to a df
-  unique() |> # identify unique stratum only 
-  mutate(RelWt = Area_SqNm / sum(Area_SqNm)) # calculate the relative weight of each stratum based on its proportion of the total survey footprint area; to be used in later calculations.
+strata <- sf::st_read(here("gis", "NEFSC-BTS_strata_Jun2022.gdb"), layer = "NEFSC_BTS_ActiveStrata_Jun2022") #|>
+  
+strata <- strata |>
+  mutate(Area_SqM = st_area(strata), 
+         Area_SqKm = as.numeric(Area_SqM / 1000)) 
+  # dplyr::select(STRATUM, Area_SqNm) |> # select variables to be used in calculations below
+  # sf::st_set_geometry(NULL) |> # remove the coordinates; changes the sf to a df
+  # unique() |> # identify unique stratum only 
+  # mutate(RelWt = Area_SqNm / sum(Area_SqNm)) # calculate the relative weight of each stratum based on its proportion of the total survey footprint area; to be used in later calculations.
 
-sum(strata$Area_SqNm)
+sum(strata$Area_SqKm)
 
 ```
 
 ```{r}
 #density for Fall
 
-345/69114
+mean(dat_sum$FALL)/sum(strata$Area_SqKm)
 
 #density for Spring
 
-335/69114
+mean(dat_sum$SPRING)/sum(strata$Area_SqKm)
 
-##SET DENSITY = 0.005 
+##SET DENSITY = 0.005 for a year (both spring and fall)
 
 ```
