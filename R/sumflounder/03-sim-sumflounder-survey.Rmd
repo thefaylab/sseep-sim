@@ -34,8 +34,23 @@ surv_dat <- pop |>
   sim_survey(n_sims = 2,
              trawl_dim = c(1.5, 0.014),
              q = sim_logistic(k = 2, x0 = 2.5), #if plot = TRUE, xlim errors
-             set_den = 0.0025,
+             set_den = 1.463639e-06,
+             min_sets = 3,
              resample_cells = TRUE)
+```
+
+
+```{r}
+plot_survey(surv_dat, which_year = 1, which_sim = 1)
+plot_survey(surv_dat, which_year = 2, which_sim = 1)
+plot_survey(surv_dat, which_year = 3, which_sim = 1)
+```
+
+
+```{r}
+plot_survey(surv_dat, which_year = 1, which_sim = 2)
+plot_survey(surv_dat, which_year = 2, which_sim = 2)
+plot_survey(surv_dat, which_year = 3, which_sim = 2)
 ```
 
 

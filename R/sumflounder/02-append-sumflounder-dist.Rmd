@@ -30,17 +30,17 @@ set.seed(8675309)
 ```{r data, include = FALSE}
 ### LOAD DATA ####
 # the survey Grid
-grid <- readRDS(file = here(sdmtmb.dir, "data", "survey_grid.rds")) |>
-  rename(strat = STRATUM,
+grid <- readRDS(here(sdmtmb.dir, "survey_grid_Jun2022.rds")) |>
+  rename(strat = STRATUM, # rename to match column calls within SimSurvey functions
          depth = AVGDEPTH) |>
-  mutate(division = 1,
-         x = X/1000,
+  mutate(division = 1, # add division information
+         x = X/1000, # convert to km
          y = Y/1000) |>
   dplyr::select(x, y, cell, division, strat, depth) |>
   as.data.frame()
 
 # load spring model predictions
-spring_preds <- readRDS(file = here(sdmtmb.dir, "data", "spring_projects.rds"))
+spring_preds <- readRDS(file = here("data", "rds", "sumflounder-spring-preds.rds"))
 
 # load the simulated abundance
 pop <- readRDS(here("R", "sumflounder", "data", "sumflounder_abundance.rds"))
@@ -63,15 +63,15 @@ Historical summer flounder biomass catch rate data was used to fit a spatiotempo
 # filter distribution predictions for last 3 years
 preds_3yr <- spring_preds |>
   filter(EST_YEAR %in% c(2019:2021)) |>
-  rename(year = EST_YEAR,
+  rename(year = EST_YEAR, #rename to match column calls in SimSurvey
          strat = STRATUM) |>
   mutate(N_dist = exp(est),
-         year = case_when(
-           year == 2019 ~ 1,
-           year == 2020 ~ 2,
-           year == 2021 ~ 3
-         ),
-         cell = seq(1:length(N_dist))) |>
+         year = case_when( # change the year values based on their sequence 
+         year == 2019 ~ 1,
+         year == 2020 ~ 2,
+         year == 2021 ~ 3
+         )) |>#,
+         #cell = seq(1:length(N_dist))) |> # add cell # value 
   dplyr::select(X,Y, year, N_dist, cell, strat) |>
   data.table::as.data.table()
 
@@ -110,8 +110,8 @@ names(pop)[[11]] <- "grid_xy"
 ### Calculate numbers at age 
 in each cell based on the year distribution
 ```{r}
-dist <- sdmTMB::replicate_df(preds_3yr, "age", c(0:7)) |>
-  left_join(Nage, by = "age") |>
+dist <- sdmTMB::replicate_df(preds_3yr, "age", c(0:7)) |> # replicate the predictions over each age, so there are distributions for each age
+  left_join(Nage, by = "age") |> # join populations at age to the predictions
   rename(Nage = "pop$N0",
          x = X,
          y = Y) |>
@@ -134,7 +134,7 @@ ggplot(pop$sp_N) +
   facet_wrap(~age, scales = "free_y") +
   labs(x = "Longitude", y = "Latitude", fill = "Number of Summer Flounder") +
   theme_bw() +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom", legend.text = element_text(angle = 45))
 
 ```
 
