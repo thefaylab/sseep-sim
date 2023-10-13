@@ -32,11 +32,21 @@ set.seed(8675309)
 ```{r}
 surv_dat <- pop |>
   sim_survey(n_sims = 2,
-             trawl_dim = c(1.5, 0.014),
+             trawl_dim = c(2.7, 0.014),
              q = sim_logistic(k = 2, x0 = 2.5), #if plot = TRUE, xlim errors
-             set_den = 1.463639e-06,
+             set_den = 0.001,
              min_sets = 3,
+             #lengths_cap = # max # of lengths to collect per set
+             #age_cap = 8, # max # of ages to sample per length group - all 8?
+             age_sampling = "stratified", 
+             #age_length_group = , # length group bin size (cm) - 
+             age_space_group = "set", # spatial scale of stratified age sampling - ages taken each tow?
              resample_cells = TRUE)
+```
+
+
+```{r}
+#q_fun <- sim_logistic(k = 2, x0 = 2.5)
 ```
 
 
@@ -51,6 +61,14 @@ plot_survey(surv_dat, which_year = 3, which_sim = 1)
 plot_survey(surv_dat, which_year = 1, which_sim = 2)
 plot_survey(surv_dat, which_year = 2, which_sim = 2)
 plot_survey(surv_dat, which_year = 3, which_sim = 2)
+```
+
+```{r}
+# check the number of sets allocated across the survey
+strat_n <- surv_dat$setdet |> filter(year == 1, sim == 1) |> group_by(strat) |> summarise(n_sets = length(set)) |> arrange(desc(n_sets))
+
+sum(strat_n$n_sets)
+
 ```
 
 
