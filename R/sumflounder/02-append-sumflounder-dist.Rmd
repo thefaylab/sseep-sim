@@ -110,7 +110,8 @@ dist <- sdmTMB::replicate_df(preds_3yr, "age", c(0:7)) |> # replicate the predic
   mutate(P_i = N_dist/sum(N_dist), # probability of distribution
          N = Nage * P_i, # multiply probability by simulated numbers of age
          age = as.double(age),
-         cell = as.double(cell)) |>
+         cell = as.double(cell), 
+         division = 1) |>
   dplyr::select(age, year, cell, N, x, y, strat)
 
 dist
@@ -125,7 +126,8 @@ no_dist <- dplyr::anti_join(grid_xy, preds_3yr, by = "cell") |>
   sdmTMB::replicate_df("age", c(0:7)) |>
   mutate(N = 0, #
          age = as.double(age),
-         cell = as.double(cell)) 
+         cell = as.double(cell), 
+         division = 1) 
 ```
 
 #### Bind distributions

@@ -23,13 +23,13 @@ sseep.analysis <- "../sseep-analysis"
 #source(here(sseep.analysis, "R", "StratMeanFXs_v2.R"))
 
 # dataset created from `03b-spatial-filter-data.R` here(sseep_analysis,"tidy-data"). Contains complete observations for each species and unique tow filtered based on 95% cumulative distribution of biomass.
-data <- readRDS(here("data", "rds", "95filtered_complete_bts.rds"))
+data <- readRDS(here(sseep.analysis, "data", "rds", "95filtered_complete_bts.rds"))
 
 # species dataframe for adding to final dataset
 species <- readRDS(here(sseep.analysis, "data", "rds", "95filtered-species.rds"))
 
 #
-strata_wts <- readRDS(here(sseep.analysis, "data", "rds", "strata_wts.rds"))
+strata_wts <- readRDS(here(sseep.analysis, "data", "rds", "active_strata_wts.rds"))
 BTSArea <- sum(strata_wts$Area_SqNm)
 
 
@@ -107,22 +107,22 @@ saveRDS(nowind_means_yr, here("data", "rds", "indiv-mu_included.rds"))
 
 
 #### COMPLETE STRATIFIED MEAN AND VARIANCE CALCULATIONS BY YEAR####
-# calculate stratified means and variances for each combinations of species and year based on individual stratum means and variances
+# calculate stratified means and variances for each combinations of species and year based on weighted  stratum means and variances
 nowind_stratmu_yr <- nowind_means_yr %>%
   group_by(SVSPP,COMNAME, EST_YEAR) %>% #, GEO_AREA) %>%
   summarise(stratmu = (sum(wt_mu)) / BTSArea, # part two of the stratified mean formula
-            stratvar = sum(wt_var)) %>% # part two of the stratified variance formula
-  mutate(TYPE = paste("With Wind Included")) # paste identifying information of means and variances for joining and plotting in later scripts
-
-
+            stratvar = sum(wt_var)) #%>% # part two of the stratified variance formula
+  #mutate(TYPE = paste("With Wind Included")) # paste identifying information of means and variances for joining and plotting in later scripts
+#
+#
 ### save the data
 saveRDS(nowind_stratmu_yr, here("data", "rds", "strat-mu_included.rds"))
-
-
-##
-(strat_yr <- nowind_stratmu_yr |>
-    filter(SVSPP %in% c(141, 105, 106, 121,15,131,32,72,503,22,23,24,25,26,27,28, 103, 143)))
-write_csv(strat_yr, file = "strat_yr.csv")
+#
+#
+# ##
+# (strat_yr <- nowind_stratmu_yr |>
+#     filter(SVSPP %in% c(141, 105, 106, 121,15,131,32,72,503,22,23,24,25,26,27,28, 103, 143)))
+# write_csv(strat_yr, file = "strat_yr.csv")
 
 
 
