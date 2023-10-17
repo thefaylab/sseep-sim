@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ## Objective 
-Script will insert external spatial predictions from sdmTMB from sseep-analysis repo into sim_distribution() and override this part of SimSurvey, thereby hardwiring distribution predictions from sdmTMB. 
+Script will insert external spatial predictions from sdmTMB from sseep-analysis repo into sim_distribution() and override this step of SimSurvey, thereby hardwiring distribution predictions from sdmTMB. 
 
 Output: appended summer flounder population object from 01-simulate-sumflounder-abund.rmd with numbers at age distributed across the NEUS BTS survey grid 
 
@@ -15,13 +15,14 @@ Output: appended summer flounder population object from 01-simulate-sumflounder-
 knitr::opts_chunk$set(echo = TRUE)
 
 library(raster)
+library(stars)
 library(SimSurvey)
 suppressPackageStartupMessages(library(tidyverse))
 library(data.table)
 library(patchwork)
 library(here)
 
-sdmtmb.dir <- "../sseep-analysis/sdmtmb"
+sdmtmb.dir <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis/sdmtmb"
 
 set.seed(8675309)
 ```
@@ -29,18 +30,24 @@ set.seed(8675309)
 
 ```{r data, include = FALSE}
 ### LOAD DATA ####
-# the survey Grid
-grid <- readRDS(here(sdmtmb.dir, "survey_grid_Jun2022.rds")) |>
-  rename(strat = STRATUM, # rename to match column calls within SimSurvey functions
-         depth = AVGDEPTH) |>
-  mutate(division = 1, # add division information
-         x = X/1000, # convert to km
-         y = Y/1000) |>
+# the survey Grid as dataframe
+grid_xy <- readRDS(here("data", "rds", "survey_grid_062022.rds")) |>
+  rename(strat = STRATUM, 
+         x = X, 
+         y = Y) |>#, # rename to match column calls within SimSurvey functions
+         #depth = AVGDEPTH) |>
+  mutate(division = 1) |>#, # add division information
+         #x = X/1000, # convert to km
+         #y = Y/1000) |>
   dplyr::select(x, y, cell, division, strat, depth) |>
-  as.data.frame()
+  data.table::as.data.table()
+
+# the survey Grid as stars object
+grid_stars <- readRDS(here("data",  "survey_grid_stars_062022.rds"))
 
 # load spring model predictions
-spring_preds <- readRDS(file = here("data", "rds", "sumflounder-spring-preds.rds"))
+spring_preds <- readRDS(file = here(sdmtmb.dir, "sumflounder", "data", "spring_predictions.rds"))
+#spring_preds <- readRDS(here(sdmtmb.dir, "sumflounder", "data", "spring_projects.rds"))
 
 # load the simulated abundance
 pop <- readRDS(here("R", "sumflounder", "data", "sumflounder_abundance.rds"))
@@ -50,11 +57,15 @@ Nage <- readRDS(here("R", "sumflounder", "data", "sumflounder_Nage.rds"))
 
 ### DATA WRANGLE ####
 # set coordinate system
-crs <-  "+proj=utm +zone=18 +datum=WGS84 +units=km +no_defs"
+# crs <-  "+proj=utm +zone=18 +datum=WGS84 +units=km +no_defs"
 
-# convert grid to raster for appending to abundance object
-grid_ras <- rasterFromXYZ(grid, crs = crs)
+# # convert grid to raster and then stars for appending to abundance object
+# grid_ras <- rasterFromXYZ(grid, crs = crs)
+# grid_stars <- st_as_stars(grid_ras)
+# # writeRaster(grid_ras, filename = here("data", "survey_grid_Jun2022.grd"))
 ```
+
+### Distribute summer flounder numbers 
 
 _Spatial Distribution Predictions_ 
 
@@ -87,28 +98,9 @@ ggplot(preds_3yr) +
 
 ```
 
+#### Predicted Numbers at age
 
-## Append abundance object 
-
-```{r append grid, include = FALSE}
-# append  to abundance and rename list item
-pop <- append(pop, grid_ras) # use Raster object of sdmtmb grid
-names(pop)[[10]] <- "grid"
-
-# resave dataframe grid to match dummy data grid
-grid_xy <- grid |>
-  # dplyr::select(X, Y, depth, division, strat) |>
-  #rename(x = X, y = Y) |>
-  data.table::as.data.table()
-#mutate(cell = seq(1:length(depth)))
-
-# append to the simulated abundance object
-pop <- append(pop, list(grid_xy))
-names(pop)[[11]] <- "grid_xy"
-```
-
-### Calculate numbers at age 
-in each cell based on the year distribution
+Numbers at age in each cell were calculated using the sdmTMB biomass predictions as the probability of summer flounder in each cell and the numbers at age simulated from sim_abundance(). 
 ```{r}
 dist <- sdmTMB::replicate_df(preds_3yr, "age", c(0:7)) |> # replicate the predictions over each age, so there are distributions for each age
   left_join(Nage, by = "age") |> # join populations at age to the predictions
@@ -118,12 +110,65 @@ dist <- sdmTMB::replicate_df(preds_3yr, "age", c(0:7)) |> # replicate the predic
   mutate(P_i = N_dist/sum(N_dist), # probability of distribution
          N = Nage * P_i, # multiply probability by simulated numbers of age
          age = as.double(age),
-         cell = as.double(cell)) |>
+         cell = as.double(cell), 
+         division = 1) |>
   dplyr::select(age, year, cell, N, x, y, strat)
 
+dist
+```
+
+#### Forced numbers at age
+
+Summer flounder biomass predictions in sdmTMB were constrained to the 95% cumulative distributional area observed by the historical bottom trawl survey data, which spans from Georges Bank down through the mid-Atlantic depending on the season. To simulate survey effort throughout the full NEUS grid emulating the BTS survey, numbers at age are forced as 0s in cells that were outside the sdmTMB prediction domain. 
+```{r}
+no_dist <- dplyr::anti_join(grid_xy, preds_3yr, by = "cell") |>
+  sdmTMB::replicate_df("year", c(1:3)) |>
+  sdmTMB::replicate_df("age", c(0:7)) |>
+  mutate(N = 0, #
+         age = as.double(age),
+         cell = as.double(cell), 
+         division = 1) 
+```
+
+#### Bind distributions
+
+Bind the expanded distribution datasets to create a distribution dataset that extends the full NEUS shelf area for the survey.
+```{r}
+full_dist <- bind_rows(no_dist, dist) #|>
+  # filter(year ==1, age == 0) |>
+  # ggplot() +
+  # geom_tile(aes(x,y, fill = N), width = 10, height = 10)
+```
+
+
+## Append abundance object
+
+Add the grid objects and the full distributed numbers at age to the simulated abundance object, the result of which will be called in sim_survey(). 
+
+### The grid 
+```{r append grid, include = FALSE}
+# append  to abundance and rename list item
+pop[[10]] <- grid_stars # use stars object of  grid
+names(pop)[[10]] <- "grid"
+
+# resave dataframe grid to match make_grid() output
+# grid_xy <- grid |>
+#   # dplyr::select(X, Y, depth, division, strat) |>
+#   #rename(x = X, y = Y) |>
+#   data.table::as.data.table()
+#mutate(cell = seq(1:length(depth)))
 
 # append to the simulated abundance object
-pop <- append(pop, list(dist))
+pop <- append(pop, list(grid_xy))
+names(pop)[[11]] <- "grid_xy"
+
+```
+
+
+### Summer flounder distribution
+```{r}
+# append to the simulated abundance object
+pop <- append(pop, list(full_dist))
 names(pop)[[12]] <- "sp_N"
 
 
@@ -141,7 +186,7 @@ ggplot(pop$sp_N) +
 
 ```{r, include = FALSE}
 ### save the data
-saveRDS(pop, here("R", "sumflounder", "data", "sumflounder_dist.rds"))
+# saveRDS(pop, here("R", "sumflounder", "data", "sumflounder_dist.rds"))
 
 ```
 
