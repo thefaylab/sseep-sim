@@ -1,0 +1,76 @@
+---
+title: "Simulate preclusion scenario"
+author: "Angelia Miller"
+date: "2023-07-25"
+output: html_document
+---
+
+## Objective 
+Simulate the BTS survey over the NEUS survey grid under the preclusion scenarion and the distributed summer flounder population. 
+
+Output: survey data containing numbers caught per tow/set, and length and age sampled data 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(raster)
+library(SimSurvey)
+suppressPackageStartupMessages(library(tidyverse))
+library(data.table)
+library(patchwork)
+library(here)
+
+sseep.analysis <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis"
+
+# Load the population abundance and distribution 
+pop <- readRDS(here("R", "sumflounder", "data", "sumflounder_dist.rds"))
+
+wind_areas <- st_read(here(sseep.analysis, "gis", "wind_areas_merge062022.shp"))
+wind_areas_utm <- st_transform(wind_areas, crs = 32618)
+st_crs(wind_areas_utm)
+
+
+set.seed(8675309)
+```
+
+```{r}
+# simulate sets only in cells outside wind areas
+precluded_sets <- sim_sets(pop, AREA_CODE == 2, set_den = 0.001, min_sets = 3, resample_cells = TRUE, n_sims = 25)
+
+```
+
+```{r}
+preclude_surv <- pop |>
+  sim_survey(n_sims = 25,
+             trawl_dim = c(2.7, 0.014),
+             q = sim_logistic(k = 2, x0 = 2.5), #if plot = TRUE, xlim errors
+             set_den = 0.001,
+             min_sets = 3,
+#lengths_cap = # max # of lengths to collect per set
+#age_cap = 8, # max # of ages to sample per length group - all 8?
+             age_sampling = "stratified",
+#age_length_group = , # length group bin size (cm) -
+             age_space_group = "set", # spatial scale of stratified age sampling - ages taken each tow?
+             resample_cells = TRUE, 
+             custom_sets = precluded_sets)
+
+```
+
+```{r}
+data <- preclude_surv$setdet
+
+ggplot() +
+geom_sf(data = strata_utm, fill = NA) + 
+  geom_sf(data = wind_areas_utm, fill = "lightblue") + 
+  coord_sf() +
+  geom_point(data = data |> filter(sim == 2, year == 1), aes(x*1000,y*1000, size = n, color = n)) +
+  scale_color_continuous(type = "viridis") +
+  scale_size_continuous(guide = "none") +
+  theme_bw() +
+  labs(x = "Longitude", y = "Latitude", color = "Number") +
+  theme(legend.position = "bottom", panel.spacing =  unit(1, "lines"), axis.text.x = element_text(angle = 45, vjust = 0.5))
+
+
+```
+
