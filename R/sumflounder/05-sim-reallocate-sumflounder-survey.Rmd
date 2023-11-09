@@ -1,12 +1,12 @@
 ---
-title: "Simulate preclusion scenario"
+title: "Simulate reallocation scenario"
 author: "Angelia Miller"
-date: "2023-07-25"
+date: "2023-10-25"
 output: html_document
 ---
 
 ## Objective 
-Simulate the BTS survey over the NEUS survey grid under the preclusion scenarion and the distributed summer flounder population. 
+Simulate the BTS survey over the NEUS survey grid under the reallocation scenario and the distributed summer flounder population. 
 
 Output: survey data containing numbers caught per tow/set, and length and age sampled data 
 
@@ -36,12 +36,12 @@ set.seed(8675309)
 
 ```{r}
 # simulate sets only in cells outside wind areas
-precluded_sets <- sim_sets(pop, AREA_CODE == 2, set_den = 0.001, min_sets = 3, resample_cells = TRUE, n_sims = 25)
+reallocated_sets <- sim_sets(pop, AREA_CODE == 2, set_den = 0.001, min_sets = 3, resample_cells = TRUE, n_sims = 25)
 
 ```
 
 ```{r}
-preclude_surv <- pop |>
+reallocate_surv <- pop |>
   sim_survey(n_sims = 25,
              trawl_dim = c(2.7, 0.014),
              q = sim_logistic(k = 2, x0 = 2.5), #if plot = TRUE, xlim errors
@@ -58,7 +58,7 @@ preclude_surv <- pop |>
 ```
 
 ```{r}
-data <- preclude_surv$setdet
+data <- reallocate_surv$setdet
 
 ggplot() +
 geom_sf(data = strata_utm, fill = NA) + 
