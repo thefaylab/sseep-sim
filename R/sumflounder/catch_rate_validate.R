@@ -1,5 +1,5 @@
 ### created: 11/03/2023
-### updated:
+### updated: 11/14/2023
 
 # VALIDATE CATCH RATES FOR SUMFLOUNDER ####
 
@@ -7,8 +7,8 @@
 ## Objective ####
 # Script will:
 ## simulate summer flounder population and abundances based on stock assessment data
-## simulate 1000 surveys
-## bootstrap resample the observed catch rates 1000 times
+## simulate 100 surveys
+## bootstrap resample the observed catch rates 100 times
 ## compare the distribution of simulated catch rates and proportions of zeroes to that of the observed data
 #
 #
@@ -54,7 +54,7 @@ Rec_age0 <- c(43000, 44552)*1000
 
 # fishing mortality at age for the most recent year, 2016 and 2017
 ages <- as.character(0:7)
-years <- as.character(1)
+years <- as.character(1:2)
 F <- matrix(c(0.011, 0.045, 0.127, 0.253, 0.417, 0.388, 0.381, 0.277, 0.009, 0.043, 0.115, 0.213, 0.334, 0.303, 0.295, 0.217), nrow = 8, ncol = 2, byrow = FALSE, dimnames = list(age = 0:7, year = 1:2))
 
 # natural mortality
@@ -162,6 +162,7 @@ ggplot(pop$sp_N) +
   theme_bw() +
   theme(legend.position = "bottom", legend.text = element_text(angle = 45))
 
+saveRDS(pop, here("data", "rds", "catch-rate-valid", "forced-pop-dist.rds"))
 
 ## SIMULATE SURVEY ####
 surv_dat <- pop |>
@@ -176,6 +177,8 @@ surv_dat <- pop |>
              #age_length_group = , # length group bin size (cm) -
              age_space_group = "set", # spatial scale of stratified age sampling - ages taken each tow?
              resample_cells = TRUE)
+
+saveRDS(pop, here("data", "rds", "catch-rate-valid", "sim100-survey.rds"))
 
 # plot it
 data <- surv_dat$setdet
@@ -197,6 +200,9 @@ obs_strat <- unique(obs_catch$STRATUM)
 obs_resamps <- obs_catch |>
   rep_slice_sample(reps = 100, replace = TRUE, prop = 1)
 
+saveRDS(pop, here("data", "rds", "catch-rate-valid", "resamp100-obs-data.rds"))
+
+
 # obs_catch |> group_by(EST_YEAR) |> mutate(TOWID = str_c(STRATUM, CRUISE6, STATION)) |> summarise(towct = length(unique(TOWID)), mu_catch = (sum(EXPCATCHNUM)/towct), sd = sd(EXPCATCHNUM)) |> mutate(sim = 1) |> rename(year = EST_YEAR)
 #
 # obs_catch |> mutate(TOWID = str_c(STRATUM, CRUISE6, STATION)) |> summarise(towct = length(unique(TOWID)), mu_catch = (sum(EXPCATCHNUM)/towct), sd = sd(EXPCATCHNUM))
@@ -217,7 +223,7 @@ obs_data <- obs_resamps |>
          depth = AVGDEPTH)
 
 sim_data <- data |>
-  filter(strat %in% obs_strat) |>
+  dplyr::filter(strat %in% obs_strat) |>
   mutate(TOWID = as.character(seq(set)),
          TYPE = "Simulated") |>
   select(sim, TOWID, n, year, TYPE, depth) |>
@@ -246,7 +252,7 @@ test_data <- bind_rows(obs_data, sim_data)
 ### PROPORTION OF ZEROS ####
 # proportions of zeros in sim is very diff from proportion of zeros of real data - why is that?
 prop_zero <- test_data |>
-  group_by(TYPE, replicate) |>
+  group_by(TYPE, replicate, year) |>
   nest() |>
   mutate(zero = map(data, ~filter(., n == 0) |> nrow()),
          total = map(data, ~nrow(.))) |>
@@ -254,11 +260,13 @@ prop_zero <- test_data |>
   unnest(cols = c(zero, total)) |>
   summarise(prop = round((zero/total)*100, 0))
 
+saveRDS(prop_zero, here("data", "rds", "catch-rate-valid", "prop-zeros.rds"))
+
 # kable(prop_zero, caption = "Proportion of zero catch rates") |> kable_styling(full_width = FALSE)
 
 ggplot(prop_zero) +
-  geom_boxplot(aes(x = as.factor(TYPE), y = prop, color = TYPE)) +
-  labs(x = "Survey data type", y = "Proportions of zeros (%)", subtitle = "Distribution of proportion of zeros")
+  geom_boxplot(aes(x = as.factor(year), y = prop, color = TYPE)) +
+  labs(x = "Year", y = "Proportions of zeros (%)", subtitle = "Distribution of proportion of zeros")
 # distributions don't look that different but the mean is larger in the simulated data
 
 ggsave("dist-prop-zeros.png", device = "png", path = here("outputs", "sumflounder", "catch-rate-valid"), width = 8, height = 5)
@@ -275,19 +283,20 @@ ggplot(test_data) +
 ggsave("histogram-catch-rates.png", device = "png", path = here("outputs", "sumflounder", "catch-rate-valid"), width = 8, height = 5)
 
 ggplot(test_data) +
-  geom_boxplot(aes(x = as.factor(TYPE), y = n, color= TYPE)) +
-  labs(x = "Catch rate (N/tow)", y = "Frequency of catch rate occurrence", subtitle = "Distribution of catch rates")
+  geom_boxplot(aes(x = as.factor(year), y = n, color= TYPE)) +
+  labs(x = "Year", y = "Frequency of catch rate occurrence", subtitle = "Distribution of catch rates")
 # distributions don't look that different but the mean is larger in the simulated data
 
 ggsave("boxplot-catch-rates.png", device = "png", path = here("outputs", "sumflounder", "catch-rate-valid"), width = 8, height = 5)
 
 # average catch rate
 test_data |>
-  group_by(replicate, TYPE) |>
+  group_by(replicate, TYPE, year) |>
   summarise(mu = mean(n)) |>
   ggplot() +
-  geom_boxplot(aes(x = as.factor(TYPE), y = mu, color= TYPE)) +
-  labs(x = "Catch rate (N/tow)", y = "Frequency of catch rate occurrence", subtitle = "Distribution of catch rates")
+  geom_boxplot(aes(x = as.factor(year), y = mu, color= TYPE)) +
+  labs(x = "Year", y = "Frequency of mean catch rate occurrence", subtitle = "Distribution of mean catch rates")+
+  ylim(0,5)
 # distributions don't look that different but the mean is larger in the simulated data
 
 ggsave("boxplot-mu_catch-rates.png", device = "png", path = here("outputs", "sumflounder", "catch-rate-valid"), width = 8, height = 5)
