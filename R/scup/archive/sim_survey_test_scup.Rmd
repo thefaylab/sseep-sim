@@ -1,0 +1,436 @@
+---
+title: "Survey_test"
+author: "Catalina Roman"
+date: "2023-11-16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+suppressPackageStartupMessages(library(tidyverse))
+library(learnr)
+library(SimSurvey)
+library(dplyr)
+library(forcats)
+library(sdmTMB)
+library(plotly)
+library(here)
+library(raster)
+library(stars)
+library(data.table)
+library(patchwork)
+library(oce)
+library(wesanderson)
+library(gridExtra)
+
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, 
+                      out.width = "100%", out.height = "450px")
+
+dodge <- position_dodge(width=0.9)
+```
+
+```{r}
+pop_dist_f0 <- readRDS(here("R", "scup", "data", "pop_dist_f0.rds"))
+pop_dist_f1 <- readRDS(here("R", "scup", "data", "pop_dist_f1.rds"))
+pop_dist_f2 <- readRDS(here("R", "scup", "data", "pop_dist_f2.rds"))
+pop_dist_f3 <- readRDS(here("R", "scup", "data", "pop_dist_f3.rds"))
+pop_dist_f4 <- readRDS(here("R", "scup", "data", "pop_dist_f4.rds"))
+pop_dist_f5 <- readRDS(here("R", "scup", "data", "pop_dist_f5.rds"))
+pop_dist_f6 <- readRDS(here("R", "scup", "data", "pop_dist_f6.rds"))
+pop_dist_f7 <- readRDS(here("R", "scup", "data", "pop_dist_f7.rds"))
+pop_dist_f8 <- readRDS(here("R", "scup", "data", "pop_dist_f8.rds"))
+pop_dist_f9 <- readRDS(here("R", "scup", "data", "pop_dist_f9.rds"))
+
+```
+
+#survey simulation
+```{r echo=FALSE}
+set.seed(5134235)
+
+surv_f0 <- pop_dist_f0 |> sim_survey(n_sims = 5, trawl_dim = c(2.7, 0.014), 
+          q = sim_logistic(k = 2, x0 = 2.5), set_den = 0.001, min_sets = 3, 
+          age_sampling = "stratified", age_space_group = "set", resample_cells = TRUE)
+
+surv_f1 <- pop_dist_f1 |> sim_survey(n_sims = 5, trawl_dim = c(2.7, 0.014), 
+          q = sim_logistic(k = 2, x0 = 2.5), set_den = 0.001, min_sets = 3, 
+          age_sampling = "stratified", age_space_group = "set", resample_cells = TRUE)
+
+surv_f2 <- pop_dist_f2 |> sim_survey(n_sims = 5, trawl_dim = c(2.7, 0.014), 
+          q = sim_logistic(k = 2, x0 = 2.5), set_den = 0.001, min_sets = 3, 
+          age_sampling = "stratified", age_space_group = "set", resample_cells = TRUE)
+
+surv_f3 <- pop_dist_f3 |> sim_survey(n_sims = 5, trawl_dim = c(2.7, 0.014), 
+          q = sim_logistic(k = 2, x0 = 2.5), set_den = 0.001, min_sets = 3, 
+          age_sampling = "stratified", age_space_group = "set", resample_cells = TRUE)
+
+surv_f4 <- pop_dist_f4 |> sim_survey(n_sims = 5, trawl_dim = c(2.7, 0.014), 
+          q = sim_logistic(k = 2, x0 = 2.5), set_den = 0.001, min_sets = 3, 
+          age_sampling = "stratified", age_space_group = "set", resample_cells = TRUE)
+
+surv_f5 <- pop_dist_f5 |> sim_survey(n_sims = 5, trawl_dim = c(2.7, 0.014), 
+          q = sim_logistic(k = 2, x0 = 2.5), set_den = 0.001, min_sets = 3, 
+          age_sampling = "stratified", age_space_group = "set", resample_cells = TRUE)
+
+surv_f6 <- pop_dist_f6 |> sim_survey(n_sims = 5, trawl_dim = c(2.7, 0.014), 
+          q = sim_logistic(k = 2, x0 = 2.5), set_den = 0.001, min_sets = 3, 
+          age_sampling = "stratified", age_space_group = "set", resample_cells = TRUE)
+
+surv_f7 <- pop_dist_f7 |> sim_survey(n_sims = 5, trawl_dim = c(2.7, 0.014), 
+          q = sim_logistic(k = 2, x0 = 2.5), set_den = 0.001, min_sets = 3, 
+          age_sampling = "stratified", age_space_group = "set", resample_cells = TRUE)
+
+surv_f8 <- pop_dist_f8 |> sim_survey(n_sims = 5, trawl_dim = c(2.7, 0.014), 
+          q = sim_logistic(k = 2, x0 = 2.5), set_den = 0.001, min_sets = 3, 
+          age_sampling = "stratified", age_space_group = "set", resample_cells = TRUE)
+
+surv_f9 <- pop_dist_f9 |> sim_survey(n_sims = 5, trawl_dim = c(2.7, 0.014), 
+          q = sim_logistic(k = 2, x0 = 2.5), set_den = 0.001, min_sets = 3, 
+          age_sampling = "stratified", age_space_group = "set", resample_cells = TRUE)
+```
+
+#f0 
+(group_ages=score(0:7), group_years=score(0:4))
+```{r}
+xy_f0 <- as_tibble(surv_f0$grid_xy)
+dat_f0 <- as_tibble(surv_f0$setdet) %>%
+  dplyr::select(x, y, set, year, N = n, tow_area) %>%
+  left_join(., xy_f0, by = c("x", "y")) %>%
+  mutate(offset = log(tow_area))
+
+true_N_f0 <- tibble(year = unique(dat_f0$year), N = as.numeric(colSums(surv_f0$I))) %>% 
+  mutate(type = "True")
+
+sim_strat_f0 <- surv_f0 %>% run_strat() %>% strat_error()
+
+strat_N_f0 <- tibble::as_tibble(sim_strat_f0$total_strat) %>%
+  mutate(N = total, type = "All strata")
+
+index_f0 <- strat_N_f0 %>% 
+  bind_rows(true_N_f0) %>% 
+  mutate(type = forcats::fct_relevel(type, "All strata", "True")) 
+
+
+(index_f0_p <- index_f0 |>
+  dplyr::select(sim, year, N, total_lcl,total_ucl) |>
+  #pivot_wider(names_from = sim, values_from = N) |>
+  mutate(sim = as.character(sim)) |>
+  mutate_if(is.character, ~replace_na(.,"TRUE")) |>
+  ggplot(aes(year, N, fill=sim)) +  geom_bar(stat="identity", position = "dodge") +   
+  scale_fill_brewer(palette = "Blues") + ggtitle("No spatial structure") +
+  geom_errorbar(aes(x=year, ymin=total_lcl, ymax=total_ucl), position = dodge, colour="orange",width=0.25))
+
+  
+```
+
+#f1 
+(phi_year = 0.2, phi_age = 0.2)
+```{r}
+xy_f1 <- as_tibble(surv_f1$grid_xy)
+dat_f1 <- as_tibble(surv_f1$setdet) %>%
+  dplyr::select(x, y, set, year, N = n, tow_area) %>%
+  left_join(., xy_f1, by = c("x", "y")) %>%
+  mutate(offset = log(tow_area))
+
+true_N_f1 <- tibble(year = unique(dat_f1$year), N = as.numeric(colSums(surv_f1$I))) %>% 
+  mutate(type = "True")
+
+sim_strat_f1 <- surv_f1 %>% run_strat() %>% strat_error()
+
+strat_N_f1 <- tibble::as_tibble(sim_strat_f1$total_strat) %>%
+  mutate(N = total, type = "All strata")
+
+index_f1 <- strat_N_f1 %>% 
+  bind_rows(true_N_f1) %>% 
+  mutate(type = forcats::fct_relevel(type, "All strata", "True")) 
+
+
+(index_f1_p <- index_f1 |>
+  dplyr::select(sim, year, N, total_lcl,total_ucl) |>
+  #pivot_wider(names_from = sim, values_from = N) |>
+  mutate(sim = as.character(sim)) |>
+  mutate_if(is.character, ~replace_na(.,"TRUE")) |>
+  ggplot(aes(year, N, fill=sim)) +  geom_bar(stat="identity", position = "dodge") +   
+  scale_fill_brewer(palette = "Blues") + ggtitle("phi_year = 0.2 | phi_age = 0.2") +
+  geom_errorbar(aes(x=year, ymin=total_lcl, ymax=total_ucl), position = dodge, colour="orange",width=0.25))
+
+  
+```
+#f2 
+(phi_year = 0.5, phi_age = 0.2)
+```{r}
+xy_f2 <- as_tibble(surv_f2$grid_xy)
+dat_f2 <- as_tibble(surv_f2$setdet) %>%
+  dplyr::select(x, y, set, year, N = n, tow_area) %>%
+  left_join(., xy_f2, by = c("x", "y")) %>%
+  mutate(offset = log(tow_area))
+
+true_N_f2 <- tibble(year = unique(dat_f2$year), N = as.numeric(colSums(surv_f2$I))) %>% mutate(type = "True")
+
+sim_strat_f2 <- surv_f2 %>% run_strat() %>% strat_error()
+
+strat_N_f2 <- tibble::as_tibble(sim_strat_f2$total_strat) %>%
+  mutate(N = total, type = "All strata")
+
+index_f2 <- strat_N_f2 %>% 
+  bind_rows(true_N_f2) %>% 
+  mutate(type = forcats::fct_relevel(type, "All strata", "True")) 
+
+
+(index_f2_p <- index_f2 |>
+  dplyr::select(sim, year, N, total_lcl,total_ucl) |>
+  #pivot_wider(names_from = sim, values_from = N) |>
+  mutate(sim = as.character(sim)) |>
+  mutate_if(is.character, ~replace_na(.,"TRUE")) |>
+  ggplot(aes(year, N, fill=sim)) +  geom_bar(stat="identity", position = "dodge") +   
+  scale_fill_brewer(palette = "Blues") + ggtitle("phi_year = 0.5 | phi_age = 0.2") +
+  geom_errorbar(aes(x=year, ymin=total_lcl, ymax=total_ucl), position = dodge, colour="orange",width=0.25))
+
+  
+```
+
+#f3
+(phi_year = 0.8, phi_age = 0.2)
+```{r}
+xy_f3 <- as_tibble(surv_f3$grid_xy)
+dat_f3 <- as_tibble(surv_f3$setdet) %>%
+  dplyr::select(x, y, set, year, N = n, tow_area) %>%
+  left_join(., xy_f3, by = c("x", "y")) %>%
+  mutate(offset = log(tow_area))
+
+true_N_f3 <- tibble(year = unique(dat_f3$year), N = as.numeric(colSums(surv_f3$I))) %>% mutate(type = "True")
+
+sim_strat_f3 <- surv_f3 %>% run_strat() %>% strat_error()
+
+strat_N_f3 <- tibble::as_tibble(sim_strat_f3$total_strat) %>%
+  mutate(N = total, type = "All strata")
+
+index_f3 <- strat_N_f3 %>% 
+  bind_rows(true_N_f3) %>% 
+  mutate(type = forcats::fct_relevel(type, "All strata", "True")) 
+
+
+(index_f3_p <- index_f3 |>
+  dplyr::select(sim, year, N, total_lcl,total_ucl) |>
+  #pivot_wider(names_from = sim, values_from = N) |>
+  mutate(sim = as.character(sim)) |>
+  mutate_if(is.character, ~replace_na(.,"TRUE")) |>
+  ggplot(aes(year, N, fill=sim)) +  geom_bar(stat="identity", position = "dodge") +   
+  scale_fill_brewer(palette = "Blues") + ggtitle("phi_year = 0.8 | phi_age = 0.2") +
+  geom_errorbar(aes(x=year, ymin=total_lcl, ymax=total_ucl), position = dodge, colour="orange",width=0.25))
+
+  
+```
+
+#f4
+(phi_year = 0.2, phi_age = 0.5)
+```{r}
+xy_f4 <- as_tibble(surv_f4$grid_xy)
+dat_f4 <- as_tibble(surv_f4$setdet) %>%
+  dplyr::select(x, y, set, year, N = n, tow_area) %>%
+  left_join(., xy_f4, by = c("x", "y")) %>%
+  mutate(offset = log(tow_area))
+
+true_N_f4 <- tibble(year = unique(dat_f4$year), N = as.numeric(colSums(surv_f4$I))) %>% mutate(type = "True")
+
+sim_strat_f4 <- surv_f4 %>% run_strat() %>% strat_error()
+
+strat_N_f4 <- tibble::as_tibble(sim_strat_f4$total_strat) %>%
+  mutate(N = total, type = "All strata")
+
+index_f4 <- strat_N_f4 %>% 
+  bind_rows(true_N_f4) %>% 
+  mutate(type = forcats::fct_relevel(type, "All strata", "True")) 
+
+
+(index_f4_p <- index_f4 |>
+  dplyr::select(sim, year, N, total_lcl,total_ucl) |>
+  #pivot_wider(names_from = sim, values_from = N) |>
+  mutate(sim = as.character(sim)) |>
+  mutate_if(is.character, ~replace_na(.,"TRUE")) |>
+  ggplot(aes(year, N, fill=sim)) +  geom_bar(stat="identity", position = "dodge") +   
+  scale_fill_brewer(palette = "Blues") + ggtitle("phi_year = 0.2 | phi_age = 0.5") +
+  geom_errorbar(aes(x=year, ymin=total_lcl, ymax=total_ucl), position = dodge, colour="orange",width=0.25))
+
+  
+```
+
+
+#f5
+(phi_year = 0.5, phi_age = 0.5)
+```{r}
+xy_f5 <- as_tibble(surv_f5$grid_xy)
+dat_f5 <- as_tibble(surv_f5$setdet) %>%
+  dplyr::select(x, y, set, year, N = n, tow_area) %>%
+  left_join(., xy_f5, by = c("x", "y")) %>%
+  mutate(offset = log(tow_area))
+
+true_N_f5 <- tibble(year = unique(dat_f5$year), N = as.numeric(colSums(surv_f5$I))) %>% mutate(type = "True")
+
+sim_strat_f5 <- surv_f5 %>% run_strat() %>% strat_error()
+
+strat_N_f5 <- tibble::as_tibble(sim_strat_f5$total_strat) %>%
+  mutate(N = total, type = "All strata")
+
+index_f5 <- strat_N_f5 %>% 
+  bind_rows(true_N_f5) %>% 
+  mutate(type = forcats::fct_relevel(type, "All strata", "True")) 
+
+
+(index_f5_p <- index_f5 |>
+  dplyr::select(sim, year, N, total_lcl,total_ucl) |>
+  #pivot_wider(names_from = sim, values_from = N) |>
+  mutate(sim = as.character(sim)) |>
+  mutate_if(is.character, ~replace_na(.,"TRUE")) |>
+  ggplot(aes(year, N, fill=sim)) +  geom_bar(stat="identity", position = "dodge") +   
+  scale_fill_brewer(palette = "Blues") + ggtitle("phi_year = 0.5 | phi_age = 0.5") +
+  geom_errorbar(aes(x=year, ymin=total_lcl, ymax=total_ucl), position = dodge, colour="orange",width=0.25))
+
+  
+```
+
+
+#f6
+(phi_year = 0.8, phi_age = 0.5)
+```{r}
+xy_f6 <- as_tibble(surv_f6$grid_xy)
+dat_f6 <- as_tibble(surv_f6$setdet) %>%
+  dplyr::select(x, y, set, year, N = n, tow_area) %>%
+  left_join(., xy_f6, by = c("x", "y")) %>%
+  mutate(offset = log(tow_area))
+
+true_N_f6 <- tibble(year = unique(dat_f6$year), N = as.numeric(colSums(surv_f6$I))) %>% mutate(type = "True")
+
+sim_strat_f6 <- surv_f6 %>% run_strat() %>% strat_error()
+
+strat_N_f6 <- tibble::as_tibble(sim_strat_f6$total_strat) %>%
+  mutate(N = total, type = "All strata")
+
+index_f6 <- strat_N_f6 %>% 
+  bind_rows(true_N_f6) %>% 
+  mutate(type = forcats::fct_relevel(type, "All strata", "True")) 
+
+
+(index_f6_p <- index_f6 |>
+  dplyr::select(sim, year, N, total_lcl,total_ucl) |>
+  #pivot_wider(names_from = sim, values_from = N) |>
+  mutate(sim = as.character(sim)) |>
+  mutate_if(is.character, ~replace_na(.,"TRUE")) |>
+  ggplot(aes(year, N, fill=sim)) +  geom_bar(stat="identity", position = "dodge") +   
+  scale_fill_brewer(palette = "Blues") + ggtitle("phi_year = 0.8 | phi_age = 0.5") +
+  geom_errorbar(aes(x=year, ymin=total_lcl, ymax=total_ucl), position = dodge, colour="orange",width=0.25))
+
+  
+```
+
+
+#f7
+(phi_year = 0.2, phi_age = 0.8)
+```{r}
+xy_f7 <- as_tibble(surv_f7$grid_xy)
+dat_f7 <- as_tibble(surv_f7$setdet) %>%
+  dplyr::select(x, y, set, year, N = n, tow_area) %>%
+  left_join(., xy_f7, by = c("x", "y")) %>%
+  mutate(offset = log(tow_area))
+
+true_N_f7 <- tibble(year = unique(dat_f7$year), N = as.numeric(colSums(surv_f7$I))) %>% mutate(type = "True")
+
+sim_strat_f7 <- surv_f7 %>% run_strat() %>% strat_error()
+
+strat_N_f7 <- tibble::as_tibble(sim_strat_f7$total_strat) %>%
+  mutate(N = total, type = "All strata")
+
+index_f7 <- strat_N_f7 %>% 
+  bind_rows(true_N_f7) %>% 
+  mutate(type = forcats::fct_relevel(type, "All strata", "True")) 
+
+
+(index_f7_p <- index_f7 |>
+  dplyr::select(sim, year, N, total_lcl,total_ucl) |>
+  #pivot_wider(names_from = sim, values_from = N) |>
+  mutate(sim = as.character(sim)) |>
+  mutate_if(is.character, ~replace_na(.,"TRUE")) |>
+  ggplot(aes(year, N, fill=sim)) +  geom_bar(stat="identity", position = "dodge") +   
+  scale_fill_brewer(palette = "Blues") + ggtitle("phi_year = 0.2 | phi_age = 0.8") +
+  geom_errorbar(aes(x=year, ymin=total_lcl, ymax=total_ucl), position = dodge, colour="orange",width=0.25))
+
+  
+```
+
+#f8
+(phi_year = 0.5, phi_age = 0.8)
+```{r}
+xy_f8 <- as_tibble(surv_f8$grid_xy)
+dat_f8 <- as_tibble(surv_f8$setdet) %>%
+  dplyr::select(x, y, set, year, N = n, tow_area) %>%
+  left_join(., xy_f8, by = c("x", "y")) %>%
+  mutate(offset = log(tow_area))
+
+true_N_f8 <- tibble(year = unique(dat_f8$year), N = as.numeric(colSums(surv_f8$I))) %>% mutate(type = "True")
+
+sim_strat_f8 <- surv_f8 %>% run_strat() %>% strat_error()
+
+strat_N_f8 <- tibble::as_tibble(sim_strat_f8$total_strat) %>%
+  mutate(N = total, type = "All strata")
+
+index_f8 <- strat_N_f8 %>% 
+  bind_rows(true_N_f8) %>% 
+  mutate(type = forcats::fct_relevel(type, "All strata", "True")) 
+
+
+(index_f8_p <- index_f8 |>
+  dplyr::select(sim, year, N, total_lcl,total_ucl) |>
+  #pivot_wider(names_from = sim, values_from = N) |>
+  mutate(sim = as.character(sim)) |>
+  mutate_if(is.character, ~replace_na(.,"TRUE")) |>
+  ggplot(aes(year, N, fill=sim)) +  geom_bar(stat="identity", position = "dodge") +   
+  scale_fill_brewer(palette = "Blues") + ggtitle("phi_year = 0.8 | phi_age = 0.8") +
+  geom_errorbar(aes(x=year, ymin=total_lcl, ymax=total_ucl), position = dodge, colour="orange",width=0.25))
+
+  
+```
+
+
+#f9
+(phi_year = 0.8, phi_age = 0.8)
+```{r}
+xy_f9 <- as_tibble(surv_f9$grid_xy)
+dat_f9 <- as_tibble(surv_f9$setdet) %>%
+  dplyr::select(x, y, set, year, N = n, tow_area) %>%
+  left_join(., xy_f9, by = c("x", "y")) %>%
+  mutate(offset = log(tow_area))
+
+true_N_f9 <- tibble(year = unique(dat_f9$year), N = as.numeric(colSums(surv_f9$I))) %>% mutate(type = "True")
+
+sim_strat_f9 <- surv_f9 %>% run_strat() %>% strat_error()
+
+strat_N_f9 <- tibble::as_tibble(sim_strat_f9$total_strat) %>%
+  mutate(N = total, type = "All strata")
+
+index_f9 <- strat_N_f9 %>% 
+  bind_rows(true_N_f9) %>% 
+  mutate(type = forcats::fct_relevel(type, "All strata", "True")) 
+
+
+(index_f9_p <- index_f9 |>
+  dplyr::select(sim, year, N, total_lcl,total_ucl) |>
+  #pivot_wider(names_from = sim, values_from = N) |>
+  mutate(sim = as.character(sim)) |>
+  mutate_if(is.character, ~replace_na(.,"TRUE")) |>
+  ggplot(aes(year, N, fill=sim)) +  geom_bar(stat="identity", position = "dodge") +   
+  scale_fill_brewer(palette = "Blues") + ggtitle("phi_year = 0.8 | phi_age = 0.8") +
+  geom_errorbar(aes(x=year, ymin=total_lcl, ymax=total_ucl), position = dodge, colour="orange",width=0.25))
+
+  
+```
+
+```{r}
+grid.arrange(index_f1_p,index_f2_p,index_f3_p,index_f4_p,index_f5_p,index_f6_p,index_f7_p,index_f8_p,index_f9_p,ncol=3)
+
+```
+
+
+
+
+```
+
+

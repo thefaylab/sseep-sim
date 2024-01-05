@@ -1,0 +1,381 @@
+---
+title: "Sim_Distribution"
+author: "Catalina Roman"
+date: "2023-11-15"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(learnr)
+library(SimSurvey)
+library(dplyr)
+library(forcats)
+library(sdmTMB)
+library(plotly)
+library(here)
+library(raster)
+library(stars)
+suppressPackageStartupMessages(library(tidyverse))
+library(data.table)
+library(patchwork)
+library(oce)
+
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, 
+                      out.width = "100%", out.height = "450px")
+```
+
+
+```{r}
+pop <- readRDS(here("R", "scup", "data", "scup_abundance.rds"))
+Nage <- readRDS(here("R", "scup", "data", "scup_Nage.rds"))
+```
+
+#Grid
+```{r}
+grid_xy <- readRDS(here("data", "rds", "survey_grid_012023.rds")) |>
+  rename(strat = STRATUM, 
+         x = X, 
+         y = Y) |>
+  dplyr::mutate(division = 1) |>
+  dplyr::select(x, y, cell, division, strat, depth) |>
+  data.table::as.data.table()
+
+grid_ras2 <- rasterFromXYZ(grid_xy, crs = 32618)
+grid_stck2 <- stack(grid_ras2)
+g <- grid_stck2
+
+```
+
+
+#f0 
+(group_ages=score(0:7), group_years=score(0:4))
+```{r}
+pop_dist_f0 <-pop |>
+            sim_distribution(grid = g,
+                             ays_covar = sim_ays_covar(range = 300, 
+                             group_ages = 0:7,
+                             group_years = 0:4), 
+                             depth_par = sim_parabola(mu = 100, 
+                                                     sigma = 70)) 
+
+grid2_f0 <- as.data.frame(pop_dist_f0$grid_xy)
+spN2_f0 <- as.data.frame(pop_dist_f0$sp_N)
+
+pop_dist2_f0 <- spN2_f0 |> 
+  left_join(grid2_f0, by="cell") |>
+  rowid_to_column("Id") 
+
+
+pop_dist2_f0_dec <- utm2lonlat(pop_dist2_f0$x,pop_dist2_f0$y, zone=18, hemisphere = "N", km=TRUE)
+pop_dist3_f0 <- pop_dist2_f0 |> 
+  bind_cols(pop_dist2_f0_dec)
+
+plot_f0<-ggplot(pop_dist3_f0) +
+  geom_tile(aes(longitude, latitude, fill = N), width = .15, height = .15) +
+  scale_fill_viridis_c(trans = "sqrt") +
+  facet_wrap(~age, scales = "free_y") +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Scup") +
+  theme_bw() +
+  theme(legend.position = "bottom", legend.text = element_text(angle = 45))
+
+```
+
+
+#f1 
+(phi_year = 0.2, phi_age = 0.2)
+```{r}
+pop_dist_f1 <-pop |>
+            sim_distribution(grid = g,
+                             ays_covar = sim_ays_covar(range = 300, 
+                             phi_year = 0.2,
+                             phi_age = 0.2), 
+                             depth_par = sim_parabola(mu = 100, 
+                                                     sigma = 70)) 
+
+grid2_f1 <- as.data.frame(pop_dist_f1$grid_xy)
+spN2_f1 <- as.data.frame(pop_dist_f1$sp_N)
+
+pop_dist2_f1 <- spN2_f1 |> 
+  left_join(grid2_f1, by="cell") |>
+  rowid_to_column("Id") 
+
+
+pop_dist2_f1_dec <- utm2lonlat(pop_dist2_f1$x,pop_dist2_f1$y, zone=18, hemisphere = "N", km=TRUE)
+pop_dist3_f1 <- pop_dist2_f1 |> 
+  bind_cols(pop_dist2_f1_dec)
+
+plot_f1<-ggplot(pop_dist3_f1) +
+  geom_tile(aes(longitude, latitude, fill = N), width = .15, height = .15) +
+  scale_fill_viridis_c(trans = "sqrt") +
+  facet_wrap(~age, scales = "free_y") +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Scup") +
+  theme_bw() +
+  theme(legend.position = "bottom", legend.text = element_text(angle = 45))
+
+```
+
+
+#f2 
+(phi_year = 0.5, phi_age = 0.2)
+```{r}
+pop_dist_f2 <-pop |>
+            sim_distribution(grid = g,
+                             ays_covar = sim_ays_covar(range = 300, 
+                             phi_year = 0.5,
+                             phi_age = 0.2), 
+                             depth_par = sim_parabola(mu = 100, 
+                                                     sigma = 70)) 
+
+grid2_f2 <- as.data.frame(pop_dist_f2$grid_xy)
+spN2_f2 <- as.data.frame(pop_dist_f2$sp_N)
+
+pop_dist2_f2 <- spN2_f2 |> 
+  left_join(grid2_f2, by="cell") |>
+  rowid_to_column("Id") 
+
+
+pop_dist2_f2_dec <- utm2lonlat(pop_dist2_f2$x,pop_dist2_f2$y, zone=18, hemisphere = "N", km=TRUE)
+pop_dist3_f2 <- pop_dist2_f2 |> 
+  bind_cols(pop_dist2_f2_dec)
+
+plot_f2<-ggplot(pop_dist3_f2) +
+  geom_tile(aes(longitude, latitude, fill = N), width = .15, height = .15) +
+  scale_fill_viridis_c(trans = "sqrt") +
+  facet_wrap(~age, scales = "free_y") +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Scup") +
+  theme_bw() +
+  theme(legend.position = "bottom", legend.text = element_text(angle = 45))
+```
+
+#f3 
+(phi_year = 0.8, phi_age = 0.2)
+```{r}
+pop_dist_f3 <-pop |>
+            sim_distribution(grid = g,
+                             ays_covar = sim_ays_covar(range = 300, 
+                             phi_year = 0.8,
+                             phi_age = 0.2), 
+                             depth_par = sim_parabola(mu = 100, 
+                                                     sigma = 70)) 
+
+grid2_f3 <- as.data.frame(pop_dist_f3$grid_xy)
+spN2_f3 <- as.data.frame(pop_dist_f3$sp_N)
+
+pop_dist2_f3 <- spN2_f3 |> 
+  left_join(grid2_f3, by="cell") |>
+  rowid_to_column("Id") 
+
+
+pop_dist2_f3_dec <- utm2lonlat(pop_dist2_f3$x,pop_dist2_f3$y, zone=18, hemisphere = "N", km=TRUE)
+pop_dist3_f3 <- pop_dist2_f3 |> 
+  bind_cols(pop_dist2_f3_dec)
+
+plot_f3<-ggplot(pop_dist3_f3) +
+  geom_tile(aes(longitude, latitude, fill = N), width = .15, height = .15) +
+  scale_fill_viridis_c(trans = "sqrt") +
+  facet_wrap(~age, scales = "free_y") +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Scup") +
+  theme_bw() +
+  theme(legend.position = "bottom", legend.text = element_text(angle = 45))
+```
+
+#f4 
+(phi_year = 0.2, phi_age = 0.5)
+```{r}
+pop_dist_f4 <-pop |>
+            sim_distribution(grid = g,
+                             ays_covar = sim_ays_covar(range = 300, 
+                             phi_year = 0.2,
+                             phi_age = 0.5), 
+                             depth_par = sim_parabola(mu = 100, 
+                                                     sigma = 70)) 
+
+grid2_f4 <- as.data.frame(pop_dist_f4$grid_xy)
+spN2_f4 <- as.data.frame(pop_dist_f4$sp_N)
+
+pop_dist2_f4 <- spN2_f4 |> 
+  left_join(grid2_f4, by="cell") |>
+  rowid_to_column("Id") 
+
+
+pop_dist2_f4_dec <- utm2lonlat(pop_dist2_f4$x,pop_dist2_f4$y, zone=18, hemisphere = "N", km=TRUE)
+pop_dist3_f4 <- pop_dist2_f4 |> 
+  bind_cols(pop_dist2_f4_dec)
+
+plot_f4<-ggplot(pop_dist3_f4) +
+  geom_tile(aes(longitude, latitude, fill = N), width = .15, height = .15) +
+  scale_fill_viridis_c(trans = "sqrt") +
+  facet_wrap(~age, scales = "free_y") +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Scup") +
+  theme_bw() +
+  theme(legend.position = "bottom", legend.text = element_text(angle = 45))
+```
+#f5 
+(phi_year = 0.5, phi_age = 0.5)
+```{r}
+pop_dist_f5 <-pop |>
+            sim_distribution(grid = g,
+                             ays_covar = sim_ays_covar(range = 300, 
+                             phi_year = 0.5,
+                             phi_age = 0.5), 
+                             depth_par = sim_parabola(mu = 100, 
+                                                     sigma = 70)) 
+
+grid2_f5 <- as.data.frame(pop_dist_f5$grid_xy)
+spN2_f5 <- as.data.frame(pop_dist_f5$sp_N)
+
+pop_dist2_f5 <- spN2_f5 |> 
+  left_join(grid2_f5, by="cell") |>
+  rowid_to_column("Id") 
+
+
+pop_dist2_f5_dec <- utm2lonlat(pop_dist2_f5$x,pop_dist2_f5$y, zone=18, hemisphere = "N", km=TRUE)
+pop_dist3_f5 <- pop_dist2_f5 |> 
+  bind_cols(pop_dist2_f5_dec)
+
+plot_f5 <- ggplot(pop_dist3_f5) +
+  geom_tile(aes(longitude, latitude, fill = N), width = .15, height = .15) +
+  scale_fill_viridis_c(trans = "sqrt") +
+  facet_wrap(~age, scales = "free_y") +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Scup") +
+  theme_bw() +
+  theme(legend.position = "bottom", legend.text = element_text(angle = 45))
+```
+#f6 
+(phi_year = 0.8, phi_age = 0.5)
+```{r}
+pop_dist_f6 <-pop |>
+            sim_distribution(grid = g,
+                             ays_covar = sim_ays_covar(range = 300, 
+                             phi_year = 0.8,
+                             phi_age = 0.5), 
+                             depth_par = sim_parabola(mu = 100, 
+                                                     sigma = 70)) 
+
+grid2_f6 <- as.data.frame(pop_dist_f6$grid_xy)
+spN2_f6 <- as.data.frame(pop_dist_f6$sp_N)
+
+pop_dist2_f6 <- spN2_f6 |> 
+  left_join(grid2_f6, by="cell") |>
+  rowid_to_column("Id") 
+
+
+pop_dist2_f6_dec <- utm2lonlat(pop_dist2_f6$x,pop_dist2_f6$y, zone=18, hemisphere = "N", km=TRUE)
+pop_dist3_f6 <- pop_dist2_f6 |> 
+  bind_cols(pop_dist2_f6_dec)
+
+plot_f6<-ggplot(pop_dist3_f6) +
+  geom_tile(aes(longitude, latitude, fill = N), width = .15, height = .15) +
+  scale_fill_viridis_c(trans = "sqrt") +
+  facet_wrap(~age, scales = "free_y") +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Scup") +
+  theme_bw() +
+  theme(legend.position = "bottom", legend.text = element_text(angle = 45))
+```
+#f7 
+(phi_year = 0.2, phi_age = 0.8)
+```{r}
+pop_dist_f7 <-pop |>
+            sim_distribution(grid = g,
+                             ays_covar = sim_ays_covar(range = 300, 
+                             phi_year = 0.2,
+                             phi_age = 0.8), 
+                             depth_par = sim_parabola(mu = 100, 
+                                                     sigma = 70)) 
+
+grid2_f7 <- as.data.frame(pop_dist_f7$grid_xy)
+spN2_f7 <- as.data.frame(pop_dist_f7$sp_N)
+
+pop_dist2_f7 <- spN2_f7 |> 
+  left_join(grid2_f7, by="cell") |>
+  rowid_to_column("Id") 
+
+
+pop_dist2_f7_dec <- utm2lonlat(pop_dist2_f7$x,pop_dist2_f7$y, zone=18, hemisphere = "N", km=TRUE)
+pop_dist3_f7 <- pop_dist2_f7 |> 
+  bind_cols(pop_dist2_f7_dec)
+
+plot_f7<-ggplot(pop_dist3_f7) +
+  geom_tile(aes(longitude, latitude, fill = N), width = .15, height = .15) +
+  scale_fill_viridis_c(trans = "sqrt") +
+  facet_wrap(~age, scales = "free_y") +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Scup") +
+  theme_bw() +
+  theme(legend.position = "bottom", legend.text = element_text(angle = 45))
+```
+#f8 
+(phi_year = 0.5, phi_age = 0.8)
+```{r}
+pop_dist_f8 <-pop |>
+            sim_distribution(grid = g,
+                             ays_covar = sim_ays_covar(range = 300, 
+                             phi_year = 0.5,
+                             phi_age = 0.8), 
+                             depth_par = sim_parabola(mu = 100, 
+                                                     sigma = 70)) 
+
+grid2_f8 <- as.data.frame(pop_dist_f8$grid_xy)
+spN2_f8 <- as.data.frame(pop_dist_f8$sp_N)
+
+pop_dist2_f8 <- spN2_f8 |> 
+  left_join(grid2_f8, by="cell") |>
+  rowid_to_column("Id") 
+
+
+pop_dist2_f8_dec <- utm2lonlat(pop_dist2_f8$x,pop_dist2_f8$y, zone=18, hemisphere = "N", km=TRUE)
+pop_dist3_f8 <- pop_dist2_f8 |> 
+  bind_cols(pop_dist2_f8_dec)
+
+plot_f8<-ggplot(pop_dist3_f8) +
+  geom_tile(aes(longitude, latitude, fill = N), width = .15, height = .15) +
+  scale_fill_viridis_c(trans = "sqrt") +
+  facet_wrap(~age, scales = "free_y") +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Scup") +
+  theme_bw() +
+  theme(legend.position = "bottom", legend.text = element_text(angle = 45))
+```
+#f9 
+(phi_year = 0.8, phi_age = 0.8)
+```{r}
+pop_dist_f9 <-pop |>
+            sim_distribution(grid = g,
+                             ays_covar = sim_ays_covar(range = 300, 
+                             phi_year = 0.8,
+                             phi_age = 0.8), 
+                             depth_par = sim_parabola(mu = 100, 
+                                                     sigma = 70)) 
+
+grid2_f9 <- as.data.frame(pop_dist_f9$grid_xy)
+spN2_f9 <- as.data.frame(pop_dist_f9$sp_N)
+
+pop_dist2_f9 <- spN2_f9 |> 
+  left_join(grid2_f9, by="cell") |>
+  rowid_to_column("Id") 
+
+
+pop_dist2_f9_dec <- utm2lonlat(pop_dist2_f9$x,pop_dist2_f9$y, zone=18, hemisphere = "N", km=TRUE)
+pop_dist3_f9 <- pop_dist2_f9 |> 
+  bind_cols(pop_dist2_f9_dec)
+
+plot_f9<-ggplot(pop_dist3_f9) +
+  geom_tile(aes(longitude, latitude, fill = N), width = .15, height = .15) +
+  scale_fill_viridis_c(trans = "sqrt") +
+  facet_wrap(~age, scales = "free_y") +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Scup") +
+  theme_bw() +
+  theme(legend.position = "bottom", legend.text = element_text(angle = 45))
+```
+#Save
+```{r}
+saveRDS(pop_dist_f0, here::here("R", "scup", "data", "pop_dist_f0.rds"))
+saveRDS(pop_dist_f1, here::here("R", "scup", "data", "pop_dist_f1.rds"))
+saveRDS(pop_dist_f2, here::here("R", "scup", "data", "pop_dist_f2.rds"))
+saveRDS(pop_dist_f3, here::here("R", "scup", "data", "pop_dist_f3.rds"))
+saveRDS(pop_dist_f4, here::here("R", "scup", "data", "pop_dist_f4.rds"))
+saveRDS(pop_dist_f5, here::here("R", "scup", "data", "pop_dist_f5.rds"))
+saveRDS(pop_dist_f6, here::here("R", "scup", "data", "pop_dist_f6.rds"))
+saveRDS(pop_dist_f7, here::here("R", "scup", "data", "pop_dist_f7.rds"))
+saveRDS(pop_dist_f8, here::here("R", "scup", "data", "pop_dist_f8.rds"))
+saveRDS(pop_dist_f9, here::here("R", "scup", "data", "pop_dist_f9.rds"))
+```

@@ -1,0 +1,257 @@
+---
+title: "Wtd means"
+author: "Catalina Roman"
+date: "2023-11-17"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+
+suppressPackageStartupMessages(library(tidyverse))
+library(learnr)
+library(SimSurvey)
+library(dplyr)
+library(forcats)
+library(sdmTMB)
+library(plotly)
+library(here)
+library(raster)
+library(stars)
+library(data.table)
+library(patchwork)
+library(oce)
+library(wesanderson)
+library(gridExtra)
+
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, 
+                      out.width = "100%", out.height = "450px")
+```
+
+```{r}
+sseep.analysis <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis"
+
+# find the total survey area 
+BTSArea <- as.integer(sum(strata_wts$Area_SqNm))
+#BTSArea2 <- as.integer(sum(strata_wts$Area_SqNm)) * 3.429904
+
+
+
+# read in the area weights for each strata 
+wx  <- readRDS(here(sseep.analysis, "data", "rds", "active_strata_wts.rds")) |>
+  rename(strat = STRATUM) 
+# |>
+#   mutate(Area_SqKm = 3.419904 * Area_SqNm,
+#          RelWt2 = Area_SqKm/BTSArea2)
+
+
+# extract survey grid datatable
+grid_xy <- surv_f1$grid_xy
+
+obs_stratmu_f <- readRDS(here("data", "rds", "num-strat-mu_included.rds")) |> filter(SVSPP == 143, EST_YEAR %in% c(2009:2022), SEASON == "FALL")
+obs_stratmu_s <- readRDS(here("data", "rds", "num-strat-mu_included.rds")) |> filter(SVSPP == 143, EST_YEAR %in% c(2009:2022), SEASON == "SPRING")
+
+
+## Estimated Abundance
+
+# pull out the simulated numbers from the survey
+est_N_f1 <- surv_f1$setdet |> as_tibble()
+summary(est_N_f1)
+
+
+
+# calculate the individual mean abundance in each strata for each year and simulation
+estN_ind_f1 <- est_N_f1 |>
+    group_by(strat, year, sim) |>
+    dplyr::summarise(towct = length(set), # calculate unique tows
+              mu = sum(n)/towct, 
+              var = ifelse(towct == 1, 0, 
+                           sum((n - mu)^2)/(towct - 1)), .groups = "keep") 
+
+# caluclate the weighted average by multiplying by each stratas proportional area
+estN_wtd_f1 <- estN_ind_f1 |>
+    left_join(strata_wts, by = "strat") |> 
+      group_by(strat, year, sim) |>
+    mutate(wt_mu = Area_SqNm * mu, 
+           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm)), 
+           wt_var = ifelse(is.na(wt_var), 0, wt_var),
+           sd = sqrt(wt_var)) 
+         
+
+# calculated the stratified average and the standard deviations around the average 
+estN_strat_f1 <- estN_wtd_f1 |>
+    group_by(year, sim, strat) |>
+    summarise(stratmu = (sum(wt_mu)) / BTSArea, 
+              stratvar = sum(wt_var), .groups = "keep") |>
+  mutate(sdlog = sqrt(log(1+(sqrt(stratvar)/stratmu)^2)), 
+         lower = qlnorm(0.025, log(stratmu), sdlog), 
+         upper = qlnorm(0.975, log(stratmu), sdlog)) |> 
+  mutate(sdlog = ifelse(is.nan(sdlog), 0, sdlog), 
+         lower = ifelse(is.nan(lower), 0, lower), 
+         upper = ifelse(is.nan(upper), 0, upper), 
+         TYPE = "Estimated") 
+```
+
+
+```{r}
+
+#Plot of weighted mean over time for each simulation
+( estN_wtd_f1_plot <- ggplot() + 
+  geom_pointrange(data = estN_wtd_f1, aes(x = as.factor(year), 
+                                            y = wt_mu, color = as.factor(sim), ymin=(wt_mu - sd), ymax = (wt_mu + sd)), 
+                  position = position_dodge2(width=0.4)) + 
+  labs(x = "YEAR", y = "Weighted mean", color = "Simulation",title = "Weighted mean per year") +
+  theme_bw() #+ facet_wrap(~strat)
+)
+```
+
+```{r}
+
+estN_wtd_f1b <- estN_wtd_f1 |>
+  left_join(est_N_f1, by="strat")
+summary(estN_wtd_f1b)
+
+
+(p1 <- estN_wtd_f1b |> 
+ ggplot(aes(x=reorder(as.factor(strat), -RelWt), y= RelWt)) + geom_point(color = "slateblue2", size = 1.2) + 
+    theme_light() + theme(axis.text.x=element_text(angle=90, hjust=1, size = 7.5)) + ggtitle("Relative weight per strata"))
+
+
+(p2 <- estN_wtd_f1b |> 
+ ggplot(aes(x=reorder(as.factor(strat), -RelWt), y= n_aged)) + geom_point(color = "forestgreen", size = 1.2) + 
+    theme_light() + theme(axis.text.x=element_text(angle=90, hjust=1, size = 7.5))+ ggtitle("Number of sampled ages per strata"))
+
+(p3 <- estN_wtd_f1b |> 
+ ggplot(aes(x=reorder(as.factor(strat), -RelWt), y= n_measured)) + geom_point(color = "tomato3", size = 1.2) + 
+    theme_light() + theme(axis.text.x=element_text(angle=90, hjust=1, size = 7.5))+ ggtitle("Number of sampled per strata"))
+
+  grid.arrange(p1,p2,p3,nrow=3)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+#Plot of estimated abundance indices over time for each simulation
+( estN_f1_plot <- ggplot() + 
+  geom_pointrange(data = estN_strat_f1, aes(x = as.factor(year), 
+                                            y = stratmu, color = as.factor(sim), ymin=lower, ymax = upper), 
+                  position = position_dodge2(width=0.4)) + 
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Simulation",title = "Simulated Abundance Index") +
+  theme_bw()
+)
+```
+Convert to SqKm
+```{r}
+# find the total survey area 
+#BTSArea <- as.integer(sum(strata_wts$Area_SqNm))
+BTSArea2 <- as.integer(sum(strata_wts$Area_SqNm)) * 3.429904
+
+
+
+# read in the area weights for each strata 
+strata_wts2 <- readRDS(here(sseep.analysis, "data", "rds", "active_strata_wts.rds")) |>
+  rename(strat = STRATUM)  |>
+   mutate(Area_SqKm = 3.419904 * Area_SqNm,
+          RelWt2 = Area_SqKm/BTSArea2)
+
+
+# caluclate the weighted average by multiplying by each stratas proportional area
+estN_wtd_f1_2 <- estN_ind_f1 |>
+    left_join(strata_wts2, by = "strat") |> 
+      group_by(strat, year, sim) |>
+    mutate(wt_mu = Area_SqKm * mu, 
+           wt_var = ((((RelWt2)^2) * var) / towct) * (1 - (towct / Area_SqKm)), 
+           wt_var = ifelse(is.na(wt_var), 0, wt_var),
+           sd = sqrt(wt_var)) 
+         
+
+# calculated the stratified average and the standard deviations around the average 
+estN_strat_f1_2 <- estN_wtd_f1_2 |>
+    group_by(year, sim, strat) |>
+    summarise(stratmu = (sum(wt_mu)) / BTSArea2, 
+              stratvar = sum(wt_var), .groups = "keep") |>
+  mutate(sdlog = sqrt(log(1+(sqrt(stratvar)/stratmu)^2)), 
+         lower = qlnorm(0.025, log(stratmu), sdlog), 
+         upper = qlnorm(0.975, log(stratmu), sdlog)) |> 
+  mutate(sdlog = ifelse(is.nan(sdlog), 0, sdlog), 
+         lower = ifelse(is.nan(lower), 0, lower), 
+         upper = ifelse(is.nan(upper), 0, upper), 
+         TYPE = "Estimated") 
+```
+
+```{r}
+
+#Plot of weighted mean over time for each simulation
+( estN_wtd_f1_plot2 <- ggplot() + 
+  geom_pointrange(data = estN_wtd_f1_2, aes(x = as.factor(year), 
+                                            y = wt_mu, color = as.factor(sim), 
+                                            ymin=(wt_mu - sd), 
+                                            ymax = (wt_mu + sd)), 
+                  position = position_dodge2(width=0.4)) + 
+  labs(x = "YEAR", y = "Weighted mean 2", 
+       color = "Simulation",
+       title = "Weighted mean per year") +
+  theme_bw() #+ facet_wrap(~strat)
+)
+```
+```{r}
+
+#Plot of estimated abundance indices over time for each simulation
+( estN_f1_plot2 <- ggplot() + 
+  geom_pointrange(data = estN_strat_f1_2, aes(x = as.factor(year), 
+                                            y = stratmu, color = as.factor(sim), 
+                                            ymin=lower, ymax = upper), 
+                  position = position_dodge2(width=0.4)) + 
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Simulation",title = "Simulated Abundance Index") +
+  theme_bw()
+)
+```
+
+
+
+```{r}
+est_samp_f1 <- surv_f1$samp |> as_tibble() |>
+  left_join(est_N_f1, by="set")
+
+summary(est_samp_f1)
+#summary(est_N_f1)
+
+(p1 <- estN_wtd_f1b |> 
+ ggplot(aes(x=reorder(as.factor(strat), -RelWt), y= RelWt)) + geom_point(color = "slateblue2", size = 1.2) + 
+    theme_light() + theme(axis.text.x=element_text(angle=90, hjust=1, size = 7.5)) + ggtitle("Relative weight per strata"))
+
+
+(p4 <- estN_wtd_f1b |> 
+ ggplot(aes(x=reorder(as.factor(strat), -RelWt), y= n_aged)) + geom_point(color = "forestgreen", size = 1.2) + 
+    theme_light() + theme(axis.text.x=element_text(angle=90, hjust=1, size = 7.5))+ ggtitle("Number of sampled ages per strata"))
+
+(p5 <- estN_wtd_f1b |> 
+ ggplot(aes(x=reorder(as.factor(strat), -RelWt), y= n_measured)) + geom_point(color = "tomato3", size = 1.2) + 
+    theme_light() + theme(axis.text.x=element_text(angle=90, hjust=1, size = 7.5))+ ggtitle("Number of sampled per strata"))
+
+  grid.arrange(p1,p2,p3,nrow=3)
+
+
+
+```
+
+
+

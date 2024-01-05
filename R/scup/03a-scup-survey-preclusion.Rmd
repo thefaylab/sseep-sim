@@ -1,0 +1,25 @@
+---
+title: "Preclusion Survey"
+author: "Catalina Roman"
+date: "2024-01-05"
+output: html_document
+---
+
+Survey - Preclusion
+
+survey$set_den
+filter(!AREA_CODE = "1")
+
+Read survey
+```{r}
+set.seed(8675309)
+surv_dat1 <- readRDS(here("R", "scup", "data", "scup_survdat_25sims.rds"))
+
+```
+
+```{r}
+
+survey_preclusion <- surv_dat1$setdet |>
+  filter(AREA_CODE != 1)
+
+```
