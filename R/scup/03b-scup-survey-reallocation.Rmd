@@ -19,17 +19,28 @@ surv_dat1 <- readRDS(here("R", "scup", "data", "scup_survdat_25sims.rds"))
 ```
 
 ```{r}
-grid_xy <- readRDS(here("data", "survey_grid_062022.rds")) |>
-  rename(strat = STRATUM, 
-         x = X, 
-         y = Y) |>
-  mutate(division = 1) |>
-  dplyr::select(x, y, cell, division, strat, depth, AREA_CODE) |>
-  data.table::as.data.table()
-
-grid_stars <- readRDS(here("data",  "survey_grid_stars_012023.rds"))
-grid_ras <- rasterFromXYZ(grid_xy, crs = 32618)
-grid_stck <- stack(grid_ras)
+# grid_xy <- readRDS(here("data", "survey_grid_062022.rds")) |>
+#   rename(strat = STRATUM, 
+#          x = X, 
+#          y = Y) |>
+#   mutate(division = 1) |>
+#   dplyr::select(x, y, cell, division, strat, depth, AREA_CODE) |>
+#   data.table::as.data.table()
+# 
+# grid_xy <- readRDS(here("data", "rds", "survey_grid_062022.rds")) |>
+#   rename(strat = STRATUM, 
+#          x = X, 
+#          y = Y) |>#, # rename to match column calls within SimSurvey functions
+#          #depth = AVGDEPTH) |>
+#   mutate(division = 1) |>#, # add division information
+#          #x = X/1000, # convert to km
+#          #y = Y/1000) |>
+#   dplyr::select(x, y, cell, division, strat, depth, AREA_CODE) |>
+#   data.table::as.data.table()
+# 
+#grid_stars <- readRDS(here("data",  "survey_grid_stars_012023.rds"))
+#grid_ras <- rasterFromXYZ(grid_xy, crs = 32618)
+#grid_stck <- stack(grid_ras)
 ```
 
 
@@ -52,7 +63,8 @@ wind_strat <- unique(wind_cells$strat)
 
 locate cells outside the grid
 ```{r}
-out_wa_grid <- grid_xy |>
+
+out_wa_grid <- pop$grid_xy |>
   filter(strat %in% wind_strat, AREA_CODE == 2) |> 
   group_by(strat)|>
   nest() 
@@ -61,7 +73,7 @@ out_wa_grid <- grid_xy |>
 out_wa_grid does not contain strata 0320 --> (3200)
 ```{r}
 wind_summ <-  wind_tows |>
-   filter(strat != 3200) |> 
+   #filter(strat != 3200) |> 
    group_by(sim, year, strat ) |>
    nest() |>
    mutate(count = map(data,~length(.$set))) |>
@@ -71,11 +83,23 @@ wind_summ <-  wind_tows |>
 ```{r}
 join_data <- wind_summ |>
   left_join(out_wa_grid, by="strat") 
+
+out_strat <- unique(out_wa_grid$strat) 
+```
+remove nulls
+```{r}
+join_data2 <- join_data |>
+  filter(strat %in% out_strat) 
+
+join_data_nulls <- anti_join(join_data, join_data2, by=c("sim", "strat", "year"))
+   
+
 ```
 
+
 ```{r}
-new_locations <- join_data |>
-  mutate(new = map2(data, count, ~slice_sample(.x, n=.y, replace=TRUE)),
+new_locations <- join_data2 |>
+  mutate(new = map2(data, count, ~ slice_sample(.x, n=.y, replace=TRUE)),
          tow_info = map(wind_tows, ~select(., !c(x,y,cell,depth, AREA_CODE, n, n_aged, n_measured, N))),
          new_set_loc = map2(new, tow_info, ~bind_cols(.x, .y))) |>
   select(c(sim, year, strat, new_set_loc)) |>
@@ -109,4 +133,11 @@ plot_survey(surv_reallocation, which_year = 1, which_sim = 1)
 plot_survey(surv_reallocation, which_year = 2, which_sim = 1)
 plot_survey(surv_reallocation, which_year = 3, which_sim = 1)
 
+```
+
+
+
+```{r, include = FALSE}
+saveRDS(new_locations, here("R", "scup", "data", "new_locations.rds"))
+saveRDS(surv_reallocation, here("R", "scup", "data", "scup_survreallocation_25sims.rds"))
 ```

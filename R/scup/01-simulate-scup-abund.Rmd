@@ -74,7 +74,7 @@ Z_age<- F_age + M
 set.seed(5134235)
 
 
-pop_dist1 <- sim_abundance(ages = 0:7, years = 1:4, 
+pop <- sim_abundance(ages = 0:7, years = 1:4, 
                      R = sim_R(log_mean = log(Rec), log_sd = 0.001, plot = TRUE),  
                      Z = sim_Z(log_mean = log(Z_age), log_sd = 0.001, plot = TRUE),
                      growth = sim_vonB(Linf = 46.6, K = 0.15, plot = TRUE)) 
@@ -82,9 +82,9 @@ pop_dist1 <- sim_abundance(ages = 0:7, years = 1:4,
 #Z_fun <- sim_Z(log_mean = log(0.5), log_sd = 0.1, phi_age = 0.9, phi_year = 0.9, plot = TRUE)
 #Z_fun(years = 1:100, ages = 1:20)
 
-round(pop_dist1$N)
-plot_surface(pop_dist1, mat = "N")
-Nage_1 <- tibble(age = 0:7, pop_dist1$N0)
+round(pop$N)
+plot_surface(pop, mat = "N")
+Nage <- tibble(age = 0:7, pop$N0)
 
 
 ```
@@ -92,7 +92,7 @@ Nage_1 <- tibble(age = 0:7, pop_dist1$N0)
 
 ```{r, include = FALSE}
 ### save the data
-saveRDS(pop_dist1, here::here("R", "scup", "data", "scup_abundance.rds"))
-saveRDS(Nage_1, here::here("R", "scup", "data", "scup_Nage.rds"))
+saveRDS(pop, here::here("R", "scup", "data", "scup_abundance.rds"))
+saveRDS(Nage, here::here("R", "scup", "data", "scup_Nage.rds"))
 ```
 
