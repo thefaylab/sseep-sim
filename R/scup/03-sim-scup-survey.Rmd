@@ -1,6 +1,5 @@
 ---
 title: "Simulate BTS survey on scup"
-author: "Angelia Miller"
 date: "2024-01-05"
 output: html_document
 ---

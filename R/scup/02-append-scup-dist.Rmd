@@ -22,7 +22,7 @@ library(data.table)
 library(patchwork)
 library(here)
 
-sdmtmb.dir <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis/sdmtmb"
+#sdmtmb.dir <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis/sdmtmb"
 
 set.seed(8675309)
 ```
@@ -31,7 +31,7 @@ set.seed(8675309)
 ```{r data, include = FALSE}
 ### LOAD DATA ####
 # the survey Grid as dataframe
-grid_xy <- readRDS(here("data", "rds", "survey_grid_062022.rds")) |>
+grid_xy <- readRDS(here("R", "scup","data", "survey_grid_062022.rds")) |>
   rename(strat = STRATUM, 
          x = X, 
          y = Y) |>#, # rename to match column calls within SimSurvey functions
@@ -43,7 +43,7 @@ grid_xy <- readRDS(here("data", "rds", "survey_grid_062022.rds")) |>
   data.table::as.data.table()
 
 # the survey Grid as stars object
-grid_stars <- readRDS(here("data",  "survey_grid_stars_062022.rds"))
+grid_stars <- readRDS(here("R","scup","data",  "survey_grid_stars_062022.rds"))
 grid_stars$division = 1
 
 # load spring model predictions

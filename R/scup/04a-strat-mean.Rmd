@@ -18,7 +18,7 @@ library(data.table)
 library(patchwork)
 library(here)
 
-sseep.analysis <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis/"
+#sseep.analysis <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis/"
 ```
 
 
@@ -44,7 +44,7 @@ survey_setdet_reallocation <- setdet_sp |>
 
 
 # read in the area weights for each strata 
-strata_wts <- readRDS(here(sseep.analysis, "data", "rds", "active_strata_wts.rds")) |>
+strata_wts <- readRDS(here("R","scup", "data","active_strata_wts.rds")) |>
   rename(strat = STRATUM)
 
 # find the total survey area 
@@ -59,7 +59,7 @@ obs_stratmu <- readRDS(here("R","scup","data", "scup_nowind_stratmu.rds")) |>
 ```
 
 
-## Estimated Abundance from status quo survey
+## Stratified mean from status quo survey
 Bias - variance
 precision - CV = sd/mu
 ```{r}
@@ -100,7 +100,7 @@ estN_strat_s1 <- estN_wtd_s1 |>
 ```
 
 
-Plot of estimated abundance indices over time for each simulation
+Plot of strat mean over time for each simulation
 ```{r}
 # create a plot of the indices of abundance from the simulated data 
 estN_plot_s1 <- ggplot() +
@@ -116,7 +116,7 @@ estN_plot_s1 <- ggplot() +
 
 estN_plot_s1
 ```
-## Estimated Abundance from survey with precluded data
+##Stratified mean from survey with precluded tows
 ```{r}
 # pull out the simulated numbers of scup from the survey with precluded data inside wind areas
 est_N_s2 <- survey_preclusion$setdet |> as_tibble()
@@ -155,7 +155,7 @@ estN_strat_s2 <- estN_wtd_s2 |>
 ```
 
 
-Plot of estimated abundance indices over time for each simulation
+Plot of strat mean over time for each simulation
 ```{r}
 
 estN_plot_s2 <- ggplot() +
@@ -173,9 +173,8 @@ estN_plot_s2
 ```
 
 
-## Estimated Abundance from survey with reallocated data
+## ##Stratified mean from survey with reallocated tows
 ```{r}
-# pull out the simulated numbers of scup from the survey with precluded data inside wind areas
 est_N_s3 <- survey_setdet_reallocation |> as_tibble()
 
 
@@ -212,7 +211,7 @@ estN_strat_s3 <- estN_wtd_s3 |>
 ```
 
 
-Plot of estimated abundance indices over time for each simulation
+Plot of strat mean over time for each simulation
 ```{r}
 
 estN_plot_s3 <- ggplot() +
@@ -235,7 +234,7 @@ estN_plot_s3
 
 
 
-
+pendant
 
 ```{r}
 

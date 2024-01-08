@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ## Objective ####
-Script will simulate summer flounder population and abundances based on stock assessment data
+Script will simulate scup population and abundances based on stock assessment data
 
 Output: Initial numbers at age, numbers at length, total mortality at age for a set number of years and ages, and recruitment for a given number of years 
 
