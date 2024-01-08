@@ -1,5 +1,5 @@
 ---
-title: "Preclusion Survey"
+title: "Preclusion"
 author: "Catalina Roman"
 date: "2024-01-05"
 output: html_document
@@ -12,14 +12,138 @@ filter(!AREA_CODE = "1")
 
 Read survey
 ```{r}
-set.seed(8675309)
 surv_dat1 <- readRDS(here("R", "scup", "data", "scup_survdat_25sims.rds"))
 
 ```
 
 ```{r}
 
-survey_preclusion <- surv_dat1$setdet |>
-  filter(AREA_CODE != 1)
+survey_preclusion <- surv_dat1
+survey_preclusion$setdet <- filter(surv_dat1$setdet, AREA_CODE != 1) #filter wind areas
+
+#saveRDS(survey_preclusion, here("R", "scup", "data", "scup_survpreclusion.rds"))
+
+```
+
+
+```{r}
+
+## Run stratified mean for survey and survey with precluded areas
+#surv_dat1 <- surv_dat1 %>% run_strat()
+#survey_preclusion <- survey_preclusion %>% run_strat()
+
+```
+
+## Strat mean from status quo survey
+Bias - variance
+precision - CV = sd/mu
+```{r}
+# pull out the simulated numbers of scup from the survey
+est_N_s1 <- surv_dat1$setdet |> as_tibble()
+
+# calculate the individual mean abundance in each strata for each year and simulation
+estN_ind_s1 <- est_N_s1 |>
+    group_by(strat, year, sim) |>
+    dplyr::summarise(towct = length(set), 
+              mu = sum(n)/towct, 
+              var = ifelse(towct == 1, 0, 
+                           sum((n - mu)^2)/(towct - 1)), .groups = "keep") 
+
+# calculate the weighted average by multiplying by each stratas proportional area
+estN_wtd_s1 <- estN_ind_s1 |>
+    left_join(strata_wts, by = "strat") |>
+      group_by(strat, year, sim) |>
+    mutate(wt_mu = Area_SqNm * mu, 
+           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm)), 
+           wt_var = ifelse(is.na(wt_var), 0, wt_var)) 
+           
+
+# calculated the stratified average and the standard deviations 
+estN_strat_s1 <- estN_wtd_s1 |>
+    group_by(year, sim) |>
+    summarise(mean = (sum(wt_mu)) / BTSArea, # part two of the stratified mean formula
+              var = sum(wt_var), .groups = "keep") |>
+  mutate(sd = sqrt(log(1+(sqrt(var)/mean)^2)), #log standard deviation
+         mean_lcl = qlnorm(0.025, log(mean), sd), # lower quantile of the logistic normal distribution
+         mean_ucl = qlnorm(0.975, log(mean), sd)) |> # upper quantile of the logistic normal distribution
+  mutate(sd = ifelse(is.nan(sd), 0, sd), # if sdlog is NaN, replace with 0
+         mean_lcl = ifelse(is.nan(mean_lcl), 0, mean_lcl), # if the lower quantile is NaN, replace with 0
+         mean_ucl = ifelse(is.nan(mean_ucl), 0, mean_ucl), 
+         TYPE = "Strat mean Status quo")
+
+```
+
+## Strat mean from survey with precluded tows
+
+```{r}
+## Estimated Abundance from survey with precluded data
+
+est_N_s2 <- survey_preclusion$setdet |> as_tibble()
+
+
+# calculate the individual mean abundance in each strata for each year and simulation
+estN_ind_s2 <- est_N_s2 |>
+    group_by(strat, year, sim) |>
+    dplyr::summarise(towct = length(set), 
+              mu = sum(n)/towct, 
+              var = ifelse(towct == 1, 0, 
+                           sum((n - mu)^2)/(towct - 1)), .groups = "keep") 
+
+# calculate the weighted average by multiplying by each stratas proportional area
+estN_wtd_s2 <- estN_ind_s2 |>
+    left_join(strata_wts, by = "strat") |>
+      group_by(strat, year, sim) |>
+    mutate(wt_mu = Area_SqNm * mu, 
+           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm)), 
+           wt_var = ifelse(is.na(wt_var), 0, wt_var)) 
+           
+
+# calculated the stratified average and the standard deviations 
+estN_strat_s2 <- estN_wtd_s2 |>
+    group_by(year, sim) |>
+    summarise(mean = (sum(wt_mu)) / BTSArea, # part two of the stratified mean formula
+              var = sum(wt_var), .groups = "keep") |>
+  mutate(sd = sqrt(log(1+(sqrt(var)/mean)^2)), #log standard deviation
+         mean_lcl = qlnorm(0.025, log(mean), sd), # lower quantile of the logistic normal distribution
+         mean_ucl = qlnorm(0.975, log(mean), sd)) |> # upper quantile of the logistic normal distribution
+  mutate(sd = ifelse(is.nan(sd), 0, sd), # if sdlog is NaN, replace with 0
+         mean_lcl = ifelse(is.nan(mean_lcl), 0, mean_lcl), # if the lower quantile is NaN, replace with 0
+         mean_ucl = ifelse(is.nan(mean_ucl), 0, mean_ucl), 
+         TYPE = "Strat mean Preclusion")
+
+```
+
+
+```{r}
+## Add coordinates to set details
+xy <- as_tibble(surv_dat1$grid_xy)
+dat <- as_tibble(surv_dat1$setdet) %>%
+  select(x, y, set, year, N = n, tow_area) %>%
+  left_join(., xy, by = c("x", "y")) %>%
+  mutate(offset = log(tow_area))
+
+```
+
+```{r}
+## Combine indices
+true_abund <- tibble(year = unique(dat$year), N = as.numeric(colSums(surv_dat1$I))) %>% mutate(type = "True")
+surv_abund <- tibble::as_tibble(surv_dat1$total_strat) %>%
+  mutate(N = total, type = "All strata")
+surv_prec_abund <- tibble::as_tibble(survey_preclusion$total_strat) %>%
+  mutate(N = total, type = "Wind areas preclusion")
+
+index <- surv_abund %>% 
+  bind_rows(surv_prec_abund) %>%
+  bind_rows(true_abund) %>% 
+  mutate(type = forcats::fct_relevel(type, "All strata", "True", "Wind areas preclusion"))
+  dash = c(rep("dot",15),rep("solid",15),rep("dot",15))
+  
+  
+## Plot
+index %>% 
+  plot_ly(x = ~year, color = ~type, legendgroup = ~type) %>% 
+  add_ribbons(ymin = ~total_lcl, ymax = ~total_ucl, line = list(width = 0), showlegend = FALSE) %>% 
+  add_lines(y = ~N, line = list(dash = dash)) #~ifelse(type != "True", "solid", "dot"))) #%>% 
+  
 
 ```

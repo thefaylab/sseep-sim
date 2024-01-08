@@ -100,11 +100,11 @@ join_data_nulls <- anti_join(join_data, join_data2, by=c("sim", "strat", "year")
 ```{r}
 new_locations <- join_data2 |>
   mutate(new = map2(data, count, ~ slice_sample(.x, n=.y, replace=TRUE)),
-         tow_info = map(wind_tows, ~select(., !c(x,y,cell,depth, AREA_CODE, n, n_aged, n_measured, N))),
+         tow_info = map(wind_tows, ~select(., !c(x,y,cell,depth, division, AREA_CODE, n, n_aged, n_measured, N))),
          new_set_loc = map2(new, tow_info, ~bind_cols(.x, .y))) |>
   select(c(sim, year, strat, new_set_loc)) |>
   unnest(cols=new_set_loc) |>
-  select(!(division)) |>
+  #select(!(division)) |>
   relocate(set, .after = last_col())
 
 ```

@@ -44,6 +44,7 @@ grid_xy <- readRDS(here("data", "rds", "survey_grid_062022.rds")) |>
 
 # the survey Grid as stars object
 grid_stars <- readRDS(here("data",  "survey_grid_stars_062022.rds"))
+grid_stars$division = 1
 
 # load spring model predictions
 fall_preds <- readRDS(file = here("R", "scup", "data", "fall_grid_preds.rds"))
