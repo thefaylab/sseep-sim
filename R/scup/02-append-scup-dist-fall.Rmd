@@ -1,0 +1,182 @@
+---
+title: "Append scup distributions"
+author: "Catalina Roman"
+date: "2023-12-12"
+output: html_document
+---
+
+## Objective 
+Script will insert external spatial predictions from sdmTMB from sseep-analysis repo into sim_distribution() and override this step of SimSurvey, thereby hardwiring distribution predictions from sdmTMB. 
+
+Output: appended scup population object from 01-simulate-scup-abund.rmd with numbers at age distributed across the NEUS BTS survey grid 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(raster)
+library(stars)
+library(SimSurvey)
+suppressPackageStartupMessages(library(tidyverse))
+library(data.table)
+library(patchwork)
+library(here)
+
+#sdmtmb.dir <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis/sdmtmb"
+
+set.seed(8675309)
+```
+
+
+```{r data, include = FALSE}
+### LOAD DATA ####
+# the survey Grid as dataframe
+grid_xy <- readRDS(here("R", "scup","data", "survey_grid_062022.rds")) |>
+  rename(strat = STRATUM, 
+         x = X, 
+         y = Y) |>#, # rename to match column calls within SimSurvey functions
+         #depth = AVGDEPTH) |>
+  mutate(division = 1) |>#, # add division information
+         #x = X/1000, # convert to km
+         #y = Y/1000) |>
+  dplyr::select(x, y, cell, division, strat, depth, AREA_CODE) |>
+  data.table::as.data.table()
+
+# the survey Grid as stars object
+grid_stars <- readRDS(here("R","scup","data",  "survey_grid_stars_062022.rds"))
+grid_stars$division = 1
+
+# load spring model predictions
+fall_preds <- readRDS(file = here("R", "scup", "data", "fall_grid_preds.rds"))
+
+# load the simulated abundance
+pop <- readRDS(here("R", "scup", "data", "scup_abundance.rds"))
+
+# load the abundance by age
+Nage <- readRDS(here("R", "scup", "data", "scup_Nage.rds"))
+
+```
+
+### Distribute scup numbers 
+
+_Spatial Distribution Predictions_ 
+
+```{r}
+# filter distribution predictions for last 4 years
+preds_4yr <- fall_preds |>
+  filter(EST_YEAR %in% c(2016,2018,2019,2021)) |>
+  rename(year = EST_YEAR, #rename to match column calls in SimSurvey
+         strat = STRATUM,
+         depth = AVGDEPTH) |>
+  mutate(N_dist = exp(est),
+         year = case_when( # change the year values based on their sequence 
+         year == 2016 ~ 1,
+         year == 2018 ~ 2,
+         year == 2019 ~ 3,
+         year == 2021 ~ 4
+         )) |>#,
+         #cell = seq(1:length(N_dist))) |> # add cell # value 
+  dplyr::select(X,Y, year, N_dist, cell, strat, depth) |>
+  data.table::as.data.table()
+
+
+
+
+#plot it
+ggplot(preds_4yr) +
+  geom_tile(aes(X, Y, fill = N_dist), width = 10, height = 10) +
+  scale_fill_viridis_c() +
+  facet_wrap(~year) +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Scup") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+```
+
+#### Predicted Numbers at age
+
+Numbers at age in each cell were calculated using the sdmTMB biomass predictions as the probability of scup in each cell and the numbers at age simulated from sim_abundance(). 
+```{r}
+dist <- sdmTMB::replicate_df(preds_4yr, "age", c(0:7)) |> # replicate the predictions over each age, so there are distributions for each age
+  left_join(Nage, by = "age") |> # join populations at age to the predictions
+  rename(Nage = "pop$N0",
+         x = X,
+         y = Y) |>
+  mutate(P_i = N_dist/sum(N_dist), # probability of distribution
+         N = Nage * P_i, # multiply probability by simulated numbers of age
+         age = as.double(age),
+         cell = as.double(cell), 
+         division = 1) |>
+  dplyr::select(age, year, cell, N, x, y, strat, depth, division)
+
+dist
+
+```
+
+#### Forced numbers at age
+
+Scup biomass predictions in sdmTMB were constrained to the 90% cumulative distributional area observed by the historical bottom trawl survey data and to the contiguous strata to assure spatial domain continuity. To simulate survey effort throughout the full NEUS grid emulating the BTS survey, numbers at age are forced as 0s in cells that were outside the sdmTMB prediction domain. 
+```{r}
+no_dist <- dplyr::anti_join(grid_xy, preds_4yr, by = "cell") |>
+  sdmTMB::replicate_df("year", c(1:4)) |>
+  sdmTMB::replicate_df("age", c(0:7)) |>
+  mutate(N = 0, #
+         age = as.double(age),
+         cell = as.double(cell), 
+         division = 1) 
+```
+
+#### Bind distributions
+
+Bind the expanded distribution datasets to create a distribution dataset that extends the full NEUS shelf area for the survey.
+```{r}
+full_dist <- bind_rows(no_dist, dist) #|>
+  # filter(year ==1, age == 0) |>
+  # ggplot() +
+  # geom_tile(aes(x,y, fill = N), width = 10, height = 10)
+```
+
+
+## Append abundance object
+
+Add the grid objects and the full distributed numbers at age to the simulated abundance object, the result of which will be called in sim_survey(). 
+
+### The grid 
+```{r append grid, include = FALSE}
+# append  to abundance and rename list item
+pop[[10]] <- grid_stars # use stars object of  grid
+names(pop)[[10]] <- "grid"
+
+# append to the simulated abundance object
+pop <- append(pop, list(grid_xy))
+names(pop)[[11]] <- "grid_xy"
+
+```
+
+
+### Scup distribution
+```{r}
+# append to the simulated abundance object
+pop <- append(pop, list(full_dist))
+names(pop)[[12]] <- "sp_N"
+
+
+# plot numbers at age
+ggplot(pop$sp_N) +
+  geom_tile(aes(x, y, fill = N), width = 10, height = 10) +
+  scale_fill_viridis_c(trans = "sqrt") +
+  facet_wrap(~age, scales = "free_y") +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Scup") +
+  theme_bw() +
+  theme(legend.position = "bottom", legend.text = element_text(angle = 45))
+
+
+```
+
+
+```{r, include = FALSE}
+### save the data
+saveRDS(pop, here("R", "scup", "data", "scup_dist_fall.rds"))
+
+```
+

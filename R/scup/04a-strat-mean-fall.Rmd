@@ -1,0 +1,393 @@
+---
+title: "Strat mean"
+date: "2024-01-07"
+output: html_document
+---
+
+## Objective
+true and estimated stratified abundance indices, bias and precision of those abundance indices
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(raster)
+library(SimSurvey)
+suppressPackageStartupMessages(library(tidyverse))
+library(data.table)
+library(patchwork)
+library(here)
+
+#sseep.analysis <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis/"
+```
+
+
+### Load Data 
+```{r}
+# read in survey data 
+# Status quo
+surv_dat1 <- readRDS(here("R", "scup", "data", "scup_survdat_25sims_fall.rds"))
+# Preclusion 
+survey_preclusion <- surv_dat1
+survey_preclusion$setdet <- filter(surv_dat1$setdet, AREA_CODE != 1) #filter wind areas
+
+# Reallocation
+surv_reallocation <- readRDS(here("R", "scup", "data", "scup_survreallocation_25sims_fall.rds"))
+setdet_sr <- surv_reallocation$setdet 
+setdet_sp <- survey_preclusion$setdet |>
+  relocate(division, .after ="cell")
+
+
+survey_setdet_reallocation <- setdet_sp |>
+  bind_rows(setdet_sr)
+
+
+
+# read in the area weights for each strata 
+strata_wts <- readRDS(here("R","scup", "data","active_strata_wts.rds")) |>
+  rename(strat = STRATUM)
+
+# find the total survey area 
+BTSArea <- as.integer(sum(strata_wts$Area_SqNm))
+
+# extract survey grid datatable
+grid_xy <- surv_dat1$grid_xy
+
+obs_stratmu <- readRDS(here("R","scup","data", "scup_nowind_stratmu.rds")) |> 
+  filter(EST_YEAR %in% c(2016,2018,2019,2021), SEASON == "FALL")
+
+```
+
+Load data for maps
+```{r, include=FALSE}
+# read the strata shapefile in to plot the polygons based on proportion and overlay the tow points
+strata <- readRDS(here("R", "scup","data", "active_strata.rds")) 
+
+# wind areas 
+wind_areas <- readRDS(here("R", "scup","data", "all_wind_areas_Jun2022.rds")) 
+wind_areas2 <- readRDS(here("R", "scup", "data","all_wind_areas_Jan2023.rds")) 
+
+coastline <- sf::st_read(dsn = here("R", "scup","data", "gis", "eastern_coast_UTM.shp"))
+
+```
+
+## Stratified mean from status quo survey
+Bias - variance
+precision - CV = sd/mu
+```{r}
+# pull out the simulated numbers of scup from the survey
+est_N_s1 <- surv_dat1$setdet |> as_tibble()
+
+
+# calculate the individual mean abundance in each strata for each year and simulation
+estN_ind_s1 <- est_N_s1 |>
+    group_by(strat, year, sim) |>
+    dplyr::summarise(towct = length(set), # calculate unique tows
+              mu = sum(n)/towct, # find the avg B based on unique tows rather than observations to avoid  duplication
+              var = ifelse(towct == 1, 0, # if the tow count equals 1, then variance about the mean should be 0
+                           sum((n - mu)^2)/(towct - 1)), .groups = "keep") # if tow count does not equal 1, then find the variance of biomass
+
+# calculate the weighted average by multiplying by each stratas proportional area
+estN_wtd_s1 <- estN_ind_s1 |>
+    left_join(strata_wts, by = "strat") |> # add each stratum area and relative weight to the dataset based on STRATUM number
+      group_by(strat, year, sim) |>
+    mutate(wt_mu = Area_SqNm * mu, # part one of the stratified mean formula
+           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm)), 
+           wt_var = ifelse(is.na(wt_var), 0, wt_var)) 
+           # part one of the stratified variance formula
+
+# calculated the stratified average and the standard deviations 
+estN_strat_s1 <- estN_wtd_s1 |>
+    group_by(year, sim) |>
+    summarise(stratmu = (sum(wt_mu)) / BTSArea, 
+              stratvar = sum(wt_var), .groups = "keep") |>
+  mutate(sdlog = sqrt(log(1+(sqrt(stratvar)/stratmu)^2)), 
+         lower = qlnorm(0.025, log(stratmu), sdlog), 
+         upper = qlnorm(0.975, log(stratmu), sdlog)) |> 
+  mutate(sdlog = ifelse(is.nan(sdlog), 0, sdlog), 
+         lower = ifelse(is.nan(lower), 0, lower), 
+         upper = ifelse(is.nan(upper), 0, upper), 
+         TYPE = "Status quo")
+
+```
+
+
+Plot of strat mean over time for each simulation
+```{r}
+# create a plot of the indices of abundance from the simulated data 
+estN_plot_s1 <- ggplot() +
+  geom_pointrange(data = estN_strat_s1, aes(x = as.factor(year), 
+                                         y = stratmu, color = as.factor(sim), 
+                                         ymin=lower, ymax = upper), 
+                  position = position_dodge2(width=0.4)) +
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Simulation", 
+       title = "Stratified mean",
+       subtitle = "Status Quo Survey") +
+  ylim(0,30)+
+  theme_bw() 
+
+estN_plot_s1
+```
+#Map of survey placements
+```{r}
+#status quo survey
+est_N_s1
+#convert to dec deg
+est_N_s1_dec <- utm2lonlat(est_N_s1$x,est_N_s1$y, zone=18, hemisphere = "N", km=TRUE)
+est_N_s1 <- est_N_s1 |> 
+  bind_cols(est_N_s1_dec)
+
+
+(sq_map <-  ggplot(strata) + 
+  geom_sf() +  
+ # geom_sf(data = coastline, fill = "grey70", color = "black") + 
+  geom_sf(data = wind_areas, fill="darkblue", color="grey80") +
+  geom_point(data=est_N_s1, aes(x = longitude, y = latitude), 
+             color = "darkorange2", shape = 19, alpha=0.2, size=0.001)  +
+  labs(title = "", x = "Long", y = "Lat"))
+
+```
+
+##Stratified mean from survey with precluded tows
+```{r}
+# pull out the simulated numbers of scup from the survey with precluded data inside wind areas
+est_N_s2 <- survey_preclusion$setdet |> as_tibble()
+
+
+# calculate the individual mean abundance in each strata for each year and simulation
+estN_ind_s2 <- est_N_s2 |>
+    group_by(strat, year, sim) |>
+    dplyr::summarise(towct = length(set), 
+              mu = sum(n)/towct, 
+              var = ifelse(towct == 1, 0, 
+                           sum((n - mu)^2)/(towct - 1)), .groups = "keep") 
+
+# calculate the weighted average by multiplying by each stratas proportional area
+estN_wtd_s2 <- estN_ind_s2 |>
+    left_join(strata_wts, by = "strat") |>
+      group_by(strat, year, sim) |>
+    mutate(wt_mu = Area_SqNm * mu, 
+           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm)), 
+           wt_var = ifelse(is.na(wt_var), 0, wt_var)) 
+           
+
+# calculated the stratified average and the standard deviations 
+estN_strat_s2 <- estN_wtd_s2 |>
+    group_by(year, sim) |>
+    summarise(stratmu = (sum(wt_mu)) / BTSArea, 
+              stratvar = sum(wt_var), .groups = "keep") |>
+  mutate(sdlog = sqrt(log(1+(sqrt(stratvar)/stratmu)^2)), 
+         lower = qlnorm(0.025, log(stratmu), sdlog), 
+         upper = qlnorm(0.975, log(stratmu), sdlog)) |> 
+  mutate(sdlog = ifelse(is.nan(sdlog), 0, sdlog), 
+         lower = ifelse(is.nan(lower), 0, lower), 
+         upper = ifelse(is.nan(upper), 0, upper), 
+         TYPE = "Preclusion")
+
+```
+
+
+Plot of strat mean over time for each simulation
+```{r}
+
+estN_plot_s2 <- ggplot() +
+  geom_pointrange(data = estN_strat_s2, aes(x = as.factor(year), 
+                                         y = stratmu, color = as.factor(sim), 
+                                         ymin=lower, ymax = upper), 
+                  position = position_dodge2(width=0.4)) +
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Simulation", 
+       title = "Stratified mean",
+       subtitle = "Preclusion") +
+  ylim(0,25) +
+  theme_bw() 
+
+estN_plot_s2
+```
+
+
+#Map of survey placements
+```{r}
+#preclusion scenario survey
+est_N_s2
+#convert to dec deg
+est_N_s2_dec <- utm2lonlat(est_N_s2$x,est_N_s2$y, zone=18, hemisphere = "N", km=TRUE)
+est_N_s2 <- est_N_s2 |> 
+  bind_cols(est_N_s2_dec)
+
+(s2_map <-  ggplot(strata) + 
+  geom_sf() +  
+ # geom_sf(data = coastline, fill = "grey70", color = "black") + 
+  geom_sf(data = wind_areas, fill="darkblue", color="grey80") +
+  geom_point(data=est_N_s2, aes(x = longitude, y = latitude), 
+             color = "darkorange3", shape = 20, alpha=0.2, size=0.01)  +
+  labs(title = "", x = "Long", y = "Lat"))
+
+
+```
+
+
+## ##Stratified mean from survey with reallocated tows
+```{r}
+est_N_s3 <- survey_setdet_reallocation |> as_tibble()
+
+
+# calculate the individual mean abundance in each strata for each year and simulation
+estN_ind_s3 <- est_N_s3 |>
+    group_by(strat, year, sim) |>
+    dplyr::summarise(towct = length(set), 
+              mu = sum(n)/towct, 
+              var = ifelse(towct == 1, 0, 
+                           sum((n - mu)^2)/(towct - 1)), .groups = "keep") 
+
+# calculate the weighted average by multiplying by each stratas proportional area
+estN_wtd_s3 <- estN_ind_s3 |>
+    left_join(strata_wts, by = "strat") |>
+      group_by(strat, year, sim) |>
+    mutate(wt_mu = Area_SqNm * mu, 
+           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm)), 
+           wt_var = ifelse(is.na(wt_var), 0, wt_var)) 
+           
+
+# calculated the stratified average and the standard deviations 
+estN_strat_s3 <- estN_wtd_s3 |>
+    group_by(year, sim) |>
+    summarise(stratmu = (sum(wt_mu)) / BTSArea, 
+              stratvar = sum(wt_var), .groups = "keep") |>
+  mutate(sdlog = sqrt(log(1+(sqrt(stratvar)/stratmu)^2)), 
+         lower = qlnorm(0.025, log(stratmu), sdlog), 
+         upper = qlnorm(0.975, log(stratmu), sdlog)) |> 
+  mutate(sdlog = ifelse(is.nan(sdlog), 0, sdlog), 
+         lower = ifelse(is.nan(lower), 0, lower), 
+         upper = ifelse(is.nan(upper), 0, upper), 
+         TYPE = "Reallocation")
+
+```
+
+
+Plot of strat mean over time for each simulation
+```{r}
+
+estN_plot_s3 <- ggplot() +
+  geom_pointrange(data = estN_strat_s3, aes(x = as.factor(year), 
+                                         y = stratmu, color = as.factor(sim), 
+                                         ymin=lower, ymax = upper), 
+                  position = position_dodge2(width=0.4)) +
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Simulation", 
+       title = "Stratified mean",
+       subtitle = "Reallocation") +
+  ylim(0,25)+
+  theme_bw() 
+
+estN_plot_s3
+```
+
+#Map of survey placements
+```{r}
+#reallocation survey
+setdet_sr
+setdet_sp
+#convert to dec deg
+setdet_sr_dec <- utm2lonlat(setdet_sr$x,setdet_sr$y, zone=18, hemisphere = "N", km=TRUE)
+setdet_sr <- setdet_sr |> 
+  bind_cols(setdet_sr_dec)
+
+setdet_sp_dec <- utm2lonlat(setdet_sp$x,setdet_sp$y, zone=18, hemisphere = "N", km=TRUE)
+setdet_sp <- setdet_sp |> 
+  bind_cols(setdet_sp_dec)
+
+(s3_map <-  ggplot(strata) + 
+  geom_sf() +  
+ # geom_sf(data = coastline, fill = "grey70", color = "black") + 
+  geom_sf(data = wind_areas, fill="lightcyan1", color="grey80") +
+  geom_point(data=setdet_sp, aes(x = longitude, y = latitude), 
+             color = "darkorange3", shape = 20, alpha=0.2, size=0.01)  +
+      geom_point(data=setdet_sr, aes(x = longitude, y = latitude), 
+             color = "royalblue", shape = 20, alpha=0.2, size=1)  +
+  labs(title = "", x = "Long", y = "Lat"))
+```
+
+
+
+
+
+pendant
+
+```{r}
+
+
+```
+
+## Error 
+```{r}
+# average sampling error for mean catch rate 
+estN_se_s1 <- estN_ind_s1 |>
+  mutate(sd = sqrt(var), 
+         se = (sd / sqrt(towct))*1.96)
+
+avg_se_s1 <- estN_se_s1 |> 
+  group_by(strat, year, sim) |> 
+  summarise(avg_se = mean(se))
+
+avg_se_s1
+
+
+# error statistics for abundance index using the error_stats() in SimSurvey
+observed <- obs_stratmu |>
+  ungroup() |>
+  mutate(year = case_when( # change the year values based on their sequence 
+         EST_YEAR == 2016 ~ 1,
+         EST_YEAR == 2018 ~ 2,
+         EST_YEAR == 2019 ~ 3,
+         EST_YEAR == 2021 ~ 4
+         )) |>
+  select(year, stratmu, stratvar) |>
+  rename(I = stratmu, 
+         obs_stratvar = stratvar)
+
+comp_1 <- estN_strat_s1 |> 
+  select(year, sim, stratmu, stratvar) |> 
+  rename(I_hat = stratmu,
+         est_stratvar = stratvar) |> 
+  left_join(observed, by = "year")
+
+comp_1$error <- comp_1$I_hat - comp_1$I # also bias
+
+means_1 <- error_stats(comp_1$error)
+
+means_1
+
+```
+
+
+## Precision
+ - "the precision of the mean density estimate of species g
+at time t across replicate surveys and is the standard deviation of the simulated survey estimates (where rgt is the mean density estimate of species g at time t averaged across the D surveys) relative to ygt , the true mean density of species g at time t" (Oyafuso et al 2021)
+ - "The True CV (TrueCVst) is the variability of the estimated abundance index across the survey replicates and is defined as the standard deviation of the estimated indices of abundance normalized by the true value" (Oyafuso et al 2023)
+```{r}
+# trueN_stratmu <- mean(trueN_strat$stratmu)
+# 
+comp_1 |>
+ group_by(sim, year) |>
+ summarise(cv = sqrt(est_stratvar) / I)
+
+```
+
+Bias
+```{r}
+# diff <- estN_strat |> 
+#   #rename(replicate = "sim") |>
+#   group_by(sim, year) |> 
+#   summarise(diff = stratmu - trueN_stratmu)
+# 
+# diff |> 
+#   group_by(sim) |>
+#   summarise(bias = sum(diff)/length(diff))
+
+```
+
+
+
+```{r save data, include = FALSE}
+
+```
+
