@@ -21,17 +21,32 @@ library(data.table)
 library(patchwork)
 library(here)
 
+sseep.analysis <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis"
+
 # Load the population abundance and distribution 
 pop <- readRDS(here("R", "sumflounder", "data", "sumflounder_dist.rds"))
 
-set.seed(8675309)
+# DATA FOR MAPPING 
+# east coast 
+east_coast <- st_read(here("gis", "eastern_coast_UTM.shp"))
+
+# strata
+strata <- readRDS(here(sseep.analysis, "data", "rds", "active_strata.rds"))
+strata_utm <- sf::st_transform(strata, crs = 32618)
+
+# read in wind areas where they are one large polygon
+wind_areas <- readRDS(here(sseep.analysis, "data", "rds", "wind_areas_062022", "merged_wind_areas_Jun2022.rds"))
+wind_areas_utm <- sf::st_transform(wind_areas, crs = 32618)
+
+
+set.seed(380)
 ```
 
 
 ## Simulate Survey
 ```{r}
-surv_dat1 <- pop |>
-  sim_survey(n_sims = 25,
+surv_dat <- pop |>
+  sim_survey(n_sims = 5,
              trawl_dim = c(2.7, 0.014),
              q = sim_logistic(k = 2, x0 = 2.5), #if plot = TRUE, xlim errors
              set_den = 0.001,
@@ -49,32 +64,41 @@ surv_dat1 <- pop |>
 #q_fun <- sim_logistic(k = 2, x0 = 2.5)
 ```
 
-
+### Plot the survey
 ```{r}
-plot_survey(surv_dat, which_year = 1, which_sim = 1)
-plot_survey(surv_dat, which_year = 2, which_sim = 1)
-plot_survey(surv_dat, which_year = 3, which_sim = 1)
+data <- surv_dat$setdet
+
+
+ggplot() +
+  geom_sf(data = east_coast, fill = "lightyellow") +
+  geom_sf(data = strata_utm, fill = NA) + 
+  geom_sf(data = wind_areas_utm, fill = "lightblue") +
+  coord_sf() +
+  geom_point(data = data |> filter(sim == 2, year == 1), aes(x*1000,y*1000, size = n, color = n)) +
+  scale_color_continuous(type = "viridis") +
+  scale_size_continuous(guide = "none") +
+  theme_bw() +
+  labs(x = "Longitude", y = "Latitude", color = "Number") +
+  theme(legend.position = "bottom", panel.spacing =  unit(1, "lines"), axis.text.x = element_text(angle = 45, vjust = 0.5))
+
+
 ```
 
 
-```{r}
-plot_survey(surv_dat, which_year = 1, which_sim = 2)
-plot_survey(surv_dat, which_year = 2, which_sim = 2)
-plot_survey(surv_dat, which_year = 3, which_sim = 2)
-```
 
 ```{r}
 # check the number of sets allocated across the survey
-strat_n <- surv_dat$setdet |> filter(year == 1, sim == 1) |> group_by(strat) |> summarise(n_sets = length(set)) |> arrange(desc(n_sets))
+strat_n <- data |> filter(year == 1, sim == 1) |> group_by(strat) |> summarise(n_sets = length(set)) |> arrange(desc(n_sets))
 
 sum(strat_n$n_sets)
 
 ```
 
 
-```{r, include = FALSE}
-# saveRDS(surv_dat, here("R", "sumflounder", "data", "sumflounder_survdat.rds"))
 
-saveRDS(surv_dat1, here("R", "sumflounder", "data", "sumflounder_survdat_25sims.rds"))
+## Save the data
+```{r, include = FALSE}
+saveRDS(surv_dat, here("R", "sumflounder", "data", "sumflounder_survdat.rds"))
+
 ```
 

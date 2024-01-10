@@ -1,0 +1,176 @@
+---
+title: "Simulate multispecies"
+author: "Angelia Miller"
+date: "2023-07-25"
+output: html_document
+---
+
+## Objective ####
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(raster)
+library(SimSurvey)
+suppressPackageStartupMessages(library(tidyverse))
+library(data.table)
+library(patchwork)
+library(here)
+library(sf)
+
+sseep.analysis.dat <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis/data"
+
+```
+
+Data
+```{r}
+strata <- readRDS(here(sseep.analysis.dat, "rds", "active_strata_utm.rds"))
+wind_areas <- readRDS(here(sseep.analysis.dat, "rds", "wind_areas_062022", "all_wind_areas_Jun2022.rds"))
+wind_areas_utm <- st_transform(wind_areas, crs = 32618)
+
+sumflounder <- readRDS(here("R", "sumflounder", "data", "sumflounder_fall-dist.rds"))
+atlmackerel <- readRDS(here("R", "atlmackerel", "data", "atlmackerel_dist.rds"))
+
+#scup survey data 
+scup_surv_sq <- readRDS(here("data", "rds", "temp", "scup_survdat_25sims.rds"))
+new_locs <- readRDS(here("data", "rds", "temp", "new_locations.rds"))
+
+
+```
+
+scup survey 
+```{r}
+plot_survey(scup_surv_sq, which_year = 1, which_sim = 1)
+```
+
+
+Extract fall survey locations of scup status quo survey 
+
+```{r}
+sq_sets <- scup_surv_sq$setdet |> 
+  select(!c(N, n, n_measured, n_aged))
+
+```
+
+## SIMULATE SUMMER FLOUNDER SURVEY
+### Status quo survey location
+Fall distribution and survey 
+```{r}
+set.seed(131)
+sf_survdat_sq <- sumflounder |> 
+  sim_survey(n_sims = 25,
+             trawl_dim = c(2.7, 0.014),
+             q = sim_logistic(k = 2, x0 = 2.5), #if plot = TRUE, xlim errors
+             custom_sets = sq_sets, 
+             set_den = 0.001,
+             min_sets = 3,
+             #lengths_cap = # max # of lengths to collect per set
+             #age_cap = 8, # max # of ages to sample per length group - all 8?
+             age_sampling = "stratified", 
+             #age_length_group = , # length group bin size (cm) - 
+             age_space_group = "set", # spatial scale of stratified age sampling - ages taken each tow?
+             resample_cells = TRUE)
+#saveRDS(sf_survdat_sq, here("R", "sumflounder", "data", "sumflounder_fall-sq-surv.rds"))
+
+```
+
+```{r}
+plot_survey(sf_survdat_sq, which_year = 1, which_sim = 1)
+```
+
+### Preclusion 
+Precluded summer flounder fall survey
+```{r}
+sf_survdat_precl <- sf_survdat_sq$setdet |> 
+  filter(AREA_CODE == 2)
+
+#saveRDS(sf_survdat_precl, here("R", "sumflounder", "data", "sumflounder_fall-precl-surv.rds"))
+```
+
+
+Check how many tows were removed and that the amount is equal to the number of sets being reallocated. 
+```{r}
+sf_survdat_sq$setdet |> 
+  filter(AREA_CODE == 1) |> 
+  group_by(year, sim, strat) |> 
+  summarise(n_cells = length(cell), 
+            n_sets = length(unique(set)))
+
+scup_surv_sq$setdet |> 
+  filter(AREA_CODE == 1) |> 
+  group_by(year, sim, strat) |> 
+  summarise(n_cells = length(cell), 
+            n_sets = length(unique(set)))
+
+sf_survdat_sq$setdet |> 
+  filter(AREA_CODE == 1) |> 
+  group_by(year) |> 
+   summarise(n_sims = length(sim), 
+             n_cells = length(cell), 
+             n_sets = length(unique(set)))
+scup_surv_sq$setdet |> 
+  filter(AREA_CODE == 1) |> 
+  group_by(year) |> 
+   summarise(n_sims = length(sim), 
+             n_cells = length(cell), 
+             n_sets = length(unique(set)))
+
+scup_surv_sq$setdet |> filter(AREA_CODE == 2) |> nrow()
+```
+
+
+```{r}
+ggplot() + 
+  geom_sf(data = strata, fill = NA) +
+  geom_sf(data = wind_areas_utm, fill = "lightblue", alpha = 0.5) + 
+  geom_point(data = sf_survdat_precl, aes(x*1000, y *1000, color = n, size = n)) + 
+  scale_color_continuous(type = "viridis") +
+  scale_size_continuous(guide = "none") +
+  theme_bw() +
+  labs(x = "Longitude", y = "Latitude", color = "Number") +
+  theme(legend.position = "bottom", panel.spacing =  unit(1, "lines"), axis.text.x = element_text(angle = 45, vjust = 0.5))
+```
+
+
+### Reallocation
+Reallocated survey effort 
+```{r}
+set.seed(123)
+sf_survdat_newloc <- sumflounder |> 
+  sim_survey(n_sims = 25,
+             trawl_dim = c(2.7, 0.014),
+             q = sim_logistic(k = 2, x0 = 2.5), #if plot = TRUE, xlim errors
+             custom_sets = new_locs, 
+             set_den = 0.001,
+             min_sets = 3,
+             #lengths_cap = # max # of lengths to collect per set
+             #age_cap = 8, # max # of ages to sample per length group - all 8?
+             age_sampling = "stratified", 
+             #age_length_group = , # length group bin size (cm) - 
+             age_space_group = "set", # spatial scale of stratified age sampling - ages taken each tow?
+             resample_cells = TRUE)
+# saveRDS(sf_survdat_newloc, here("R", "sumflounder", "data", "sumflounder_fall-realloc-towdat.rds"))
+```
+
+```{r}
+sf_survdat_realloc <- bind_rows(sf_survdat_precl, sf_survdat_newloc$setdet)
+# saveRDS(sf_survdat_realloc, here("R", "sumflounder", "data", "sumflounder_fall-reallocated-surv.rds"))
+```
+** adding the reallocated survey locations to the precluded dataset does not generate the same number of observations as the status quo survey; reduced effort of 344 tows overall (how many each year, and simulation?)
+
+
+```{r}
+ggplot() + 
+  geom_sf(data = strata, fill = NA) +
+  geom_sf(data = wind_areas_utm, fill = "lightblue", alpha = 0.5) + 
+  geom_point(data = sf_survdat_realloc, aes(x*1000, y *1000, color = n, size = n)) + 
+  scale_color_continuous(type = "viridis") +
+  scale_size_continuous(guide = "none") +
+  theme_bw() +
+  labs(x = "Longitude", y = "Latitude", color = "Number") +
+  theme(legend.position = "bottom", panel.spacing =  unit(1, "lines"), axis.text.x = element_text(angle = 45, vjust = 0.5))
+```
+ 
+
+
