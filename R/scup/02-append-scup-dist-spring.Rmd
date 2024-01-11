@@ -64,16 +64,17 @@ _Spatial Distribution Predictions_
 ```{r}
 # filter distribution predictions for last 4 years
 preds_4yr <- spring_preds |>
-  filter(EST_YEAR %in% c(2018,2019,2020,2021)) |>
+  filter(EST_YEAR %in% c(2017,2018,2019,2020,2021)) |>
   rename(year = EST_YEAR, #rename to match column calls in SimSurvey
          strat = STRATUM,
          depth = AVGDEPTH) |>
   mutate(N_dist = exp(est),
          year = case_when( # change the year values based on their sequence 
-         year == 2018 ~ 1,
-         year == 2019 ~ 2,
-         year == 2020 ~ 3,
-         year == 2021 ~ 4
+         year == 2017 ~ 1,
+         year == 2018 ~ 2,
+         year == 2019 ~ 3,
+         year == 2020 ~ 4,
+         year == 2021 ~ 5
          )) |>#,
          #cell = seq(1:length(N_dist))) |> # add cell # value 
   dplyr::select(X,Y, year, N_dist, cell, strat, depth) |>
@@ -99,6 +100,7 @@ Numbers at age in each cell were calculated using the sdmTMB biomass predictions
 ```{r}
 dist <- sdmTMB::replicate_df(preds_4yr, "age", c(0:7)) |> # replicate the predictions over each age, so there are distributions for each age
   left_join(Nage, by = "age") |> # join populations at age to the predictions
+  group_by(year,age) |>
   rename(Nage = "pop$N0",
          x = X,
          y = Y) |>
@@ -118,7 +120,7 @@ dist
 Scup biomass predictions in sdmTMB were constrained to the 90% cumulative distributional area observed by the historical bottom trawl survey data and to the contiguous strata to assure spatial domain continuity. To simulate survey effort throughout the full NEUS grid emulating the BTS survey, numbers at age are forced as 0s in cells that were outside the sdmTMB prediction domain. 
 ```{r}
 no_dist <- dplyr::anti_join(grid_xy, preds_4yr, by = "cell") |>
-  sdmTMB::replicate_df("year", c(1:4)) |>
+  sdmTMB::replicate_df("year", c(1:5)) |>
   sdmTMB::replicate_df("age", c(0:7)) |>
   mutate(N = 0, #
          age = as.double(age),

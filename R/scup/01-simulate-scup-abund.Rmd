@@ -74,7 +74,7 @@ Z_age<- F_age + M
 set.seed(5134235)
 
 
-pop <- sim_abundance(ages = 0:7, years = 1:4, 
+pop <- sim_abundance(ages = 0:7, years = 1:5, 
                      R = sim_R(log_mean = log(Rec), log_sd = 0.001, plot = TRUE),  
                      Z = sim_Z(log_mean = log(Z_age), log_sd = 0.001, plot = TRUE),
                      growth = sim_vonB(Linf = 46.6, K = 0.15, plot = TRUE)) 
