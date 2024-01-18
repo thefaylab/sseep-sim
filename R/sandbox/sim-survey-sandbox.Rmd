@@ -23,7 +23,7 @@ sseep.analysis <- "../sseep-analysis"
 set.seed(8675309)
 
 ## 66th SAW Report
-Rec_age0 <- c(48689, 60598, 44582, 33088, 28416) #most recent 5 years
+Rec_age0 <- c(48689, 60598, 44582, 33088, 28416)*1000 #most recent 5 years
 mean(Rec_age0)
 sd(Rec_age0)
 
@@ -103,7 +103,12 @@ grid <- readRDS(file = here(sdmtmb.dir, "data", "survey_grid.rds")) |>
 crs <-  "+proj=utm +zone=18 +datum=WGS84 +units=km +no_defs"
 
 grid_ras <- rasterFromXYZ(grid, crs = crs)
+writeRaster(grid_ras, filename = here("data", "survey_grid_ras.grd"))
+
+grid_brck <- brick(grid_ras, filename = here("data", "survey_grid_brck.grd"))
+
 grid_stck <- stack(grid_ras)
+writeRaster(grid_stck, filename = here("data", "survey_grid_stck.grd"))
 
 pop_dist3 <- sim_abundance(ages = 0:7, years = 1:10,
                            R = sim_R(log_mean = log(mean(Rec_age0)), log_sd = 0.001, plot = TRUE),
@@ -222,6 +227,16 @@ preds_5yr<- spring_preds |>
          cell = seq(1:length(N_dist))) |>
   dplyr::select(c(X,Y, year, N_dist, cell)) |>
   data.table::as.data.table()
+
+# for Catherine Foley 
+# pred_1yr <- spring_preds |>
+#   filter(EST_YEAR == 2015) |>
+#   rename(year = EST_YEAR) |>
+#    mutate(N_dist = exp(est),
+#          year = 1,
+#          cell = seq(1:length(N_dist))) |>
+#   dplyr::select(c(X,Y, year, N_dist, cell)) |>
+#   data.table::as.data.table()
 ```
 
 ## Simulate Abundance 
@@ -232,6 +247,15 @@ pop <- sim_abundance(ages = 0:7, years = 1:5,
                      growth = sim_vonB(Linf = 83.6, K = 0.14, plot = TRUE)) #66th SAW Report ASFMC
 Nage <- tibble(age = 0:7, pop$N0)
 plot_surface(pop, mat = "N")
+
+# 
+# # for catherine foley 
+# pop2 <- sim_abundance(ages = 0:7, years = 1,
+#                      R = sim_R(log_mean = log(mean(Rec_age0)), log_sd = 0.001, plot = TRUE),
+#                      Z = sim_Z(log_mean = log(mean(Z)), log_sd = 0.001, plot = TRUE),
+#                      growth = sim_vonB(Linf = 83.6, K = 0.14, plot = TRUE)) #66th SAW Report ASFMC
+# Nage2 <- tibble(age = 0:7, pop2$N0)
+# plot_surface(pop2, mat = "N")
 
 ```
 
@@ -256,12 +280,12 @@ names(pop)[[11]] <- "grid_xy"
 # calculate numbers at age in each cell based on the year distribution
 dist <- sdmTMB::replicate_df(preds_5yr, "age", c(0:7)) |>
   left_join(Nage, by = "age") |>
-  rename(Nage = "pop$N0", 
-         x = X, 
+  rename(Nage = "pop$N0",
+         x = X,
          y = Y) |>
-  mutate(P_i = N_dist/sum(N_dist),
-         N = Nage * P_i, 
-         age = as.double(age), 
+  mutate(P_i = N_dist/sum(N_dist), # probability of distribution
+         N = Nage * P_i, # multiply probability by simulated numbers of age
+         age = as.double(age),
          cell = as.double(cell)) |>
   dplyr::select(age, year, cell, N, x, y)
 
@@ -270,51 +294,80 @@ pop <- append(pop, list(dist))
 names(pop)[[12]] <- "sp_N"
 
 # plot numbers at age
-ggplot(pop$sp_N) + geom_tile(aes(x, y, fill = N), width = 10, height = 10) + scale_fill_viridis_c() + facet_wrap(~age)
+ggplot(pop$sp_N) +
+  geom_tile(aes(x, y, fill = N), width = 10, height = 10) +
+  scale_fill_viridis_c() +
+  facet_wrap(~age) +
+  labs(x = "Longitude", y = "Latitude", fill = "Number of Summer Flounder") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+saveRDS(pop, here("data", "rds", "sumflounder_sim-dist_Jul2023.rds"))
 ```
+
+```{r}
+# for catherine foley 
+#append  to abundance and rename list item
+# pop2 <- append(pop2,grid_stck) # use RasterStack object of sdmtmb grid
+# names(pop2)[[10]] <- "grid"
+# 
+# # append to the simulated abundance object
+# pop2 <- append(pop2, list(grid_xy))
+# 
+# names(pop2)[[11]] <- "grid_xy"
+# 
+# # calculate numbers at age in each cell based on the year distribution
+# dist2 <- sdmTMB::replicate_df(pred_1yr, "age", c(0:7)) |>
+#   left_join(Nage2, by = "age") |>
+#   rename(Nage = "pop2$N0",
+#          x = X,
+#          y = Y) |>
+#   mutate(P_i = N_dist/sum(N_dist),
+#          N = Nage * P_i,
+#          age = as.double(age),
+#          cell = as.double(cell)) |>
+#   dplyr::select(age, year, cell, N, x, y)
+# 
+# # append to the simulated abundance object
+# pop2 <- append(pop2, list(dist))
+# names(pop2)[[12]] <- "sp_N"
+# 
+# saveRDS(pop2, here("data", "rds", "sumflounder_1yr-dist_Jul2023.rds"))
+# 
+# # plot numbers at age
+# ggplot(pop2$sp_N) +
+#   geom_tile(aes(x, y, fill = N), width = 10, height = 10) +
+#   scale_fill_viridis_c() +
+#   facet_wrap(~age) +
+#   labs(x = "Longitude", y = "Latitude", fill = "Number of Summer Flounder") +
+#   theme_bw() +
+#   theme(legend.position = "bottom")
+```
+
 
 ## Simulate Survey
 ```{r}
-
 #a 4-seam, 3-bridle net using a rock-hopper sweep aboard the FSV Henry B. Bigelow since 2009
-#lo_effort <- 
-surv_dat2 <- pop |>
-  sim_survey(n_sims = 2,
-             trawl_dim = c(1.85, 0.014),
-             q = sim_logistic(k = 2, x0 = 2.5),
-             resample_cells = TRUE)
-
 surv_dat3 <- pop |>
   sim_survey(n_sims = 2,
-             trawl_dim = c(1.85, 0.014),
+             trawl_dim = c(1.5, 0.014),
              q = sim_logistic(k = 2, x0 = 2.5), 
              set_den = 0.02,
              resample_cells = TRUE)
+saveRDS(surv_dat3, here("data", "rds", "sf_survdat_Jul2023.rds"))
 
-
-# pop$sp_N$N <- round(pop$sp_N$N)
-# N <- tapply(pop$sp_N$N, list(pop$sp_N$age, pop$sp_N$year), sum)
-# N <- N[rownames(pop$N), colnames(pop$N)]
-# names(N) <- names(pop$N)
-# pop$N_at_length <- convert_N(N_at_age = N,
-#                              lak = pop$sim_length(age = pop$ages, length_age_key = TRUE))
-# pop$N <- N
-# pop$N0 <- N[[1]] #want age 0
-# pop$R <- N[[1]] # want value at age 0
-# pop
-             #set_den = 0.0005)
-# hi_effort <- pop_dist |>
-#   sim_survey(set_den = 0.0025)
-#
-# plot_survey(lo_effort, which_year = 1, which_sim = 1)
-# plot_survey(hi_effort, which_year = 1, which_sim = 1)
 ```
 
 
 
+## Compare Stratified Means 
+```{r}
+strata_wts <- readRDS(here(sseep.analysis, "data", "rds", "strata_wts.rds")) |>
+  rename(strat = STRATUM)
+```
 
 ```{r}
-data <- surv_dat2$setdet |> as_tibble()
+data <- surv_dat3$setdet |> as_tibble()
 
 # check individual strata information
 x <- data |>
@@ -364,19 +417,88 @@ sim_plot <- ggplot() +
   geom_pointrange(data = stratified, aes(x = as.factor(year), y = stratmu, color = as.factor(sim), ymin=lower, ymax = upper), position = position_dodge2(width=0.4)) +
   #facet_wrap(vars(SEASON), scales = "free_y") +
   #facet_grid(rows = vars(GEO_AREA), cols = vars(SEASON), scales = "free_y") + 
-  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Simulation") +
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Simulation", 
+       title = "Simulated Abundance Index") +
   #ylim(0,NA) +
   theme_bw() #+ 
 
 obs_plot <-  ggplot() +
-  geom_pointrange(data = sf_stratmu_obs |> filter(EST_YEAR %in% c(2017:2021)), aes(x = as.factor(EST_YEAR), y = stratmu, color = as.factor(SEASON), ymin=lower, ymax = upper), position =  position_dodge2(width=0.4)) +
+  geom_pointrange(data = sf_stratmu_obs |> filter(EST_YEAR %in% c(2017:2021)), aes(x = as.factor(EST_YEAR), y = stratmu, ymin=lower, ymax = upper), position =  position_dodge2(width=0.4)) +
   #facet_wrap(vars(SEASON), scales = "free_y") +
   #facet_grid(rows = vars(GEO_AREA), cols = vars(SEASON), scales = "free_y") + 
-  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "SEASON") +
+  labs(x = "YEAR", y = "Stratified Mean (N/tow)", color = "Season", title = "Observed Abundance Index") +
   #ylim(0,NA) +
   theme_bw()
 
-sim_plot + obs_plot
+sim_plot + obs_plot & theme(legend.position = "bottom")
+```
+
+
+```{r}
+surv_dat3
+
+```
+
+## Performance Metrics 
+Average sampling error for mean catch rate 
+```{r}
+
+```
+
+Bias & precision in mean length
+```{r}
+
+```
+
+Average sampling error for mean length
+```{r}
+
+```
+
+Adequacy of coverage of length distribution
+```{r}
+
+```
+
+Bias & precision in mean age
+```{r}
+
+```
+
+Average sampling error for mean age
+```{r}
+
+```
+
+Adequacy of coverage of age distribution
+```{r}
+
+```
+
+Bias & precision in relative abundance of smoll fish over time
+Bias & precision in change in relative abundance of smoll fish over time
+Average sampling error for mean catch rate of smoll fish
+
+```{r}
+# mudiff_dat <- stratified %>% 
+#   mutate(stratmu = ifelse(stratmu==0, 1, stratmu)) |>
+#   #filter(EST_YEAR %in% c(2016:2019, 2021)) %>% #filter for recent 5 years, skipping 2020
+#   mutate(log_mu = log(stratmu)) |>
+#   arrange(desc(log_mu)) |>
+#   group_by(year, sim) %>% #, GEO_AREA) %>%
+#   #summarize(sq_diff = (exp(diff(log(stratmu)))-1)^2, .groups = "drop") |>
+#   summarise(diff_mu = diff(log_mu)) |>
+#   arrange(desc(diff_mu)) |>
+#   mutate(exp_mu = (exp(diff_mu))-1) |>
+#   arrange(desc(exp_mu)) |>
+#   mutate(sq_diff = exp_mu^2) |>
+#   arrange(desc(sq_diff))|>
+#   ungroup()|>
+#   #summarize(sq_diff = (diff(stratmu))^2, .groups = "drop") %>% # calculate the relative differences and square them; drop the groups for further analysis
+#   #group_by(SVSPP, SEASON) %>%
+#   summarize(mudiff = mean(sq_diff), .groups = "drop") %>% # calculate the average; drop the grouping factor 
+#   arrange(desc(mudiff)) #%>% # arrange highest to lowest 
+#   #left_join(specieslookup, by = "SVSPP")
 ```
 
 

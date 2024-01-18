@@ -88,6 +88,59 @@ sf_survdat_precl <- sf_survdat_sq$setdet |>
 #saveRDS(sf_survdat_precl, here("R", "sumflounder", "data", "sumflounder_fall-precl-surv.rds"))
 ```
 
+```{r}
+
+sf_survdat_precl1 <-  sf_survdat_sq
+sf_survdat_precl1[[15]] <- sf_survdat_precl1$setdet |> 
+  filter(AREA_CODE == 2)
+sf_survdat_precl1[[16]] <- sf_survdat_precl1$samp[sf_survdat_precl1$samp$set %in% sf_survdat_precl1$setdet$set, ]
+
+ xax <- list(
+    title = "",
+    zeroline = FALSE,
+    showline = FALSE,
+    showticklabels = FALSE,
+    showgrid = FALSE,
+    ticks = ""
+  )
+  yax <- c(scaleanchor = "x", xax)
+
+ #sp_strat <- raster::rasterToPolygons(sf_survdat_precl1$grid)#$strat)
+  df_strat <- suppressMessages(ggplot2::fortify(strata)) #%>% group_by(.data$group))
+  df_windareas <- suppressMessages(ggplot2::fortify(wind_areas_utm))
+
+  setdet <- sf_survdat_precl1$setdet
+  setdet <- setdet[setdet$year == which_year & setdet$sim == which_sim, ]
+  samp <- sf_survdat_precl1$samp
+  samp <- samp[samp$set %in% setdet$set, ]
+  samp <- merge(setdet[, c("year", "sim", "set", "x", "y")],
+                samp, by = "set", all = TRUE)
+  
+ d <- crosstalk::SharedData$new(samp, ~set)
+
+  base <- plot_ly(data = d)
+
+  sp_p <- base %>%
+    group_by(set) %>%
+    summarise(x = unique(.data$x), y = unique(.data$y), n = sum(!is.na(.data$measured))) %>%
+    add_markers(x = ~x, y = ~y, text = ~n,
+                color = ~n, name = "n",
+                showlegend = FALSE,
+                marker = list(size = ~.scale_between(n, 2, 600),
+                              sizemode = "area")) %>%
+    add_paths(data = df_strat, x = ~long, y = ~lat, color = I("black"),
+              hoverinfo = "none", size = I(0.5), showlegend = FALSE,
+              alpha = 0.1) %>%
+    add_paths(data = df_windareas, x = ~long, y = ~lat, color = I("black"),
+              hoverinfo = "none", size = I(0.5), showlegend = FALSE,
+              alpha = 0.1) %>%
+    layout(xaxis = xax, yaxis = yax,
+           margin = list(t = 0, r = 0, l = 0, b = 0, pad = 0))
+
+
+```
+
+
 
 Check how many tows were removed and that the amount is equal to the number of sets being reallocated. 
 ```{r}
