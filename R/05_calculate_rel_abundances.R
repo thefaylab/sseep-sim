@@ -37,6 +37,9 @@ ages <- 0:7
 years <- 1:5
 
 ### LOAD DATA ####
+# simulated abundance and distributions created here("R", "03_append_distributions.R")
+pop <- readRDS(here(dist.dat, str_c(species, "_abund-dist.rds", sep = "")))
+
 # simulated status quo survey data created here("R", "04a_simulate_status-quo-survey.R")
 survdat_sq <- readRDS(here(survdat, str_c(species, season, "sq-survdat.rds", sep = "_")))
 
@@ -55,8 +58,8 @@ survey_area <- as.integer(sum(strata_wts$Area_SqNm))
 
 
 ## True Abundance ####
-#
-trueN_sq <- map(survdat_sq, ~as_tibble(.$N) |>
+# calculate the relative true abundance from the simulated population and distribution
+trueN_sq <- map(pop, ~as_tibble(.$pop$N) |>
                 mutate(age = ages) |>
                 pivot_longer(cols = all_of(years),
                              names_to = "year",
@@ -66,6 +69,7 @@ trueN_sq <- map(survdat_sq, ~as_tibble(.$N) |>
               )
 
 ## Abundance Index ####
+# calculate the abundance index and relative abundance index for each of the scenarios
 
 ### Status Quo ####
 ihat_sq <- map(survdat_sq, ~as_tibble(.$setdet) |> sim_stratmean( strata_wts = strata_wts, survey_area = survey_area) |>
