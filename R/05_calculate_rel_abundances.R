@@ -65,7 +65,8 @@ trueN_sq <- map(pop, ~as_tibble(.$pop$N) |>
                              names_to = "year",
                              values_to = "N") |>
                 summarise(N = sum(N), .by = "year") |> # calculate the sum of N across ages
-                mutate(rel_N = N/mean(N)) # standardize the annual population by the average population size over the projection
+                mutate(rel_N = N/mean(N),
+                       year = as.integer(year)) # standardize the annual population by the average population size over the projection
               )
 
 ## Abundance Index ####

@@ -23,6 +23,7 @@ library(here)
 sseep.analysis <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis"
 survdat <- here("data", "rds", "survdat")
 surv.prod <- here("data", "rds", "surv-prods")
+perform.metrics <- here("data", "rds", "perform-metrics")
 
 ### name of species to be simulated
 species <- "sumflounder"
@@ -54,24 +55,34 @@ ihat_reall <- readRDS(here(surv.prods, str_c(species, season, "reall_rel-ihat.rd
 ## RELATIVE ERROR ####
 
 ### TRUE v STATUS QUO ####
-map2(trueN_sq, ihat_sq, ~(.y$rel_ihat/.x$rel_N)/.y$rel_ihat)
+true.v.sq_err <- map2(ihat_sq, trueN_sq, ~left_join(.x, .y, by = "year")) |>
+  map(~mutate(., rel_err = (.$rel_ihat-.$rel_N)/.$rel_ihat))
+
 
 ### TRUE v PRECLUDED ####
-map2(trueN_sq, ihat_precl, ~(.y$rel_ihat/.x$rel_N)/.y$rel_ihat)
+true.v.precl_err <- map2(ihat_precl, trueN_sq, ~left_join(.x, .y, by = "year")) |>
+  map(~mutate(., rel_err = (.$rel_ihat-.$rel_N)/.$rel_ihat))
 
 
 ### TRUE v REALLOCATED ####
-map2(trueN_sq, ihat_reall, ~(.y$rel_ihat/.x$rel_N)/.y$rel_ihat)
+true.v.reall_err <- map2(ihat_reall, trueN_sq, ~left_join(.x, .y, by = "year")) |>
+  map(~mutate(., rel_err = (.$rel_ihat-.$rel_N)/.$rel_ihat))
 
 
 ## ABSOLUTE RELATIVE ERROR ####
 ### TRUE v STATUS QUO ####
-map2(trueN_sq, ihat_sq, ~abs((.y$rel_ihat/.x$rel_N)/.y$rel_ihat))
+true.v.sq_err <- map(true.v.sq_err, ~mutate(., abs_rel_err = abs(rel_err)))
 
 ### TRUE v PRECLUDED ####
-map2(trueN_sq, ihat_precl, ~abs((.y$rel_ihat/.x$rel_N)/.y$rel_ihat))
+true.v.precl_err <- map(true.v.precl_err, ~mutate(., abs_rel_err = abs(rel_err)))
 
 ### TRUE v REALLOCATED ####
-map2(trueN_sq, ihat_reall, ~abs((.y$rel_ihat/.x$rel_N)/.y$rel_ihat))
+true.v.reall_err <- map(true.v.reall_err, ~mutate(., abs_rel_err = abs(rel_err)))
+
+
+## SAVE THE DATA ####
+saveRDS(true.v.sq_err, here(perform.metrics, str_c(species, season, "true-v-sq-error.rds", sep = "_")))
+saveRDS(true.v.precl_err, here(perform.metrics, str_c(species, season, "true-v-precl-error.rds", sep = "_")))
+saveRDS(true.v.reall_err, here(perform.metrics, str_c(species, season, "true-v-reall-error.rds", sep = "_")))
 
 
