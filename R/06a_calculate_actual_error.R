@@ -16,14 +16,16 @@ suppressPackageStartupMessages(library(tidyverse))
 library(data.table)
 library(here)
 # source(here("R", "sim_stratmean_fn.R"))
+theme_set(theme_bw())
 
 
 ### DATA SET UP ####
 # data locations
-sseep.analysis <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis"
-survdat <- here("data", "rds", "survdat")
+# sseep.analysis <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis"
+# survdat <- here("data", "rds", "survdat")
 surv.prod <- here("data", "rds", "surv-prods")
 perform.metrics <- here("data", "rds", "perform-metrics")
+plots <- here("outputs", "plots")
 
 ### name of species to be simulated
 species <- "sumflounder"
@@ -31,58 +33,44 @@ species <- "sumflounder"
 ### season to be simulated
 season <- "fall"
 
-### ages simulated
-ages <- 0:7
-
-### years projected
-years <- 1:5
 
 ### LOAD DATA ####
-# simulated true abundance created here("R", "05_calculate_rel_abundance.R")
-trueN_sq <- readRDS(here(surv.prods, str_c(species, season, "sq_rel-TrueN.rds", sep = "_")))
+# relative true abundance created here("R", "05_calculate_rel_abundance.R")
+trueN <- readRDS(here(surv.prods, str_c(species, season, "rel-TrueN.rds", sep = "_")))
 
-# simulated status quo abundance index created here("R", "05_calculate_rel_abundance.R")
-ihat_sq <- readRDS(here(surv.prods, str_c(species, season, "sq_rel-ihat.rds", sep = "_")))
-
-# simulated precluded abundance index created here("R", "05_calculate_rel_abundance.R")
-ihat_precl <- readRDS(here(surv.prods, str_c(species, season, "precl_rel-ihat.rds", sep = "_")))
-
-# simulated reallocated abundance index created here("R", "05_calculate_rel_abundance.R")
-ihat_reall <- readRDS(here(surv.prods, str_c(species, season, "reall_rel-ihat.rds", sep = "_")))
+# relative abunance indices across scenarios created here("R", "05_calculate_rel_abundance.R")
+indices <- readRDS(here(surv.prods, str_c(species, season, "all-ihat.rds", sep = "_")))
 
 
-
-## RELATIVE ERROR ####
-
-### TRUE v STATUS QUO ####
-true.v.sq_err <- map2(ihat_sq, trueN_sq, ~left_join(.x, .y, by = "year")) |>
-  map(~mutate(., rel_err = (.$rel_ihat-.$rel_N)/.$rel_ihat))
-
-
-### TRUE v PRECLUDED ####
-true.v.precl_err <- map2(ihat_precl, trueN_sq, ~left_join(.x, .y, by = "year")) |>
-  map(~mutate(., rel_err = (.$rel_ihat-.$rel_N)/.$rel_ihat))
+## CALCULATE RELATIVE AND ABSOLUTE ERRORS ####
+errors <- indices |>
+   left_join(trueN, by = c("sim", "year")) |>
+   mutate(rel_err = (rel_ihat-rel_N)/rel_ihat,
+          abs_rel_err = abs(rel_err)) |>
+  dplyr::select(!scenario.y) |>
+  rename(scenario = scenario.x)
 
 
-### TRUE v REALLOCATED ####
-true.v.reall_err <- map2(ihat_reall, trueN_sq, ~left_join(.x, .y, by = "year")) |>
-  map(~mutate(., rel_err = (.$rel_ihat-.$rel_N)/.$rel_ihat))
+## PLOTS ####
+# relative error plot
+ggplot(errors) +
+  geom_boxplot(aes(x = as.factor(year), y = rel_err, color = scenario)) +
+  # ylim(0, NA) +
+  labs(x = "Year", y = "Relative error", title = str_c("Distribution of relative errors for", season, species, "survey", sep = " ")) +
+  theme(legend.position = "bottom")
 
+ggsave(str_c(species, season, "RelErrBoxPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
 
-## ABSOLUTE RELATIVE ERROR ####
-### TRUE v STATUS QUO ####
-true.v.sq_err <- map(true.v.sq_err, ~mutate(., abs_rel_err = abs(rel_err)))
+# absolute relative error plot
+ggplot(errors) +
+  geom_boxplot(aes(x = as.factor(year), y = abs_rel_err, color = scenario)) +
+  ylim(0, NA) +
+  labs(x = "Year", y = "Absolute relative error", title = str_c("Distribution of absolute relative errors for", season, species, "survey", sep = " ")) +
+  theme(legend.position = "bottom")
 
-### TRUE v PRECLUDED ####
-true.v.precl_err <- map(true.v.precl_err, ~mutate(., abs_rel_err = abs(rel_err)))
-
-### TRUE v REALLOCATED ####
-true.v.reall_err <- map(true.v.reall_err, ~mutate(., abs_rel_err = abs(rel_err)))
+ggsave(str_c(species, season, "AbsRelErrBoxPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
 
 
 ## SAVE THE DATA ####
-saveRDS(true.v.sq_err, here(perform.metrics, str_c(species, season, "true-v-sq-error.rds", sep = "_")))
-saveRDS(true.v.precl_err, here(perform.metrics, str_c(species, season, "true-v-precl-error.rds", sep = "_")))
-saveRDS(true.v.reall_err, here(perform.metrics, str_c(species, season, "true-v-reall-error.rds", sep = "_")))
-
+saveRDS(errors, here(perform.metrics, str_c(species, season, "all-rel-error.rds", sep = "_")))
 
