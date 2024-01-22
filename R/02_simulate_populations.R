@@ -62,7 +62,7 @@ K = 0.14
 # random seed numbers for generating different populations but for reproducibility of simulation
 set.seed(131)
 
-pop <- sim_pop(2, ages, years, Rec_age0, Z, Linf, K)
+pop <- sim_pop(50, ages, years, Rec_age0, Z, Linf, K)
 
 ### EXTRACT N AT AGE MATRIX ####
 Nage <- map_df(pop, ~pluck(., "N0") |>
@@ -73,8 +73,8 @@ Nage <- map_df(pop, ~pluck(., "N0") |>
 
 
 ## SAVE THE DATA ####
-saveRDS(pop, here(pop.dat, str_c(species, "_pop.rds", sep = "")))
-saveRDS(Nage, here(Nage.dat, str_c(species, "_Nage.rds", sep = "")))
+saveRDS(pop, here(pop.dat, str_c(species, "_50pop.rds", sep = "")))
+saveRDS(Nage, here(Nage.dat, str_c(species, "_50Nage.rds", sep = "")))
 
 
 

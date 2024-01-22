@@ -46,4 +46,4 @@ survdat_precl <- map(survdat_sq, ~filter(.$setdet, AREA_CODE == 2))
 
 
 ## SAVE THE DATA ####
-saveRDS(survdat_precl, here(survdat, str_c(species, season, "precl-survdat.rds", sep = "_")))
+saveRDS(survdat_precl, here(survdat, str_c(species, season, "precl-surv-50pop-dat.rds", sep = "_")))

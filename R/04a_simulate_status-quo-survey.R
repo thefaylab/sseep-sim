@@ -82,6 +82,6 @@ survdat_sq <- map(pop, ~sim_survey(.$pop,
 
 
 ## SAVE THE DATA ####
-saveRDS(survdat_sq, here(survdat, str_c(species, season, "sq-survdat.rds", sep = "_")))
+saveRDS(survdat_sq, here(survdat, str_c(species, season, "sq-surv-50pop-dat.rds", sep = "_")))
 
 

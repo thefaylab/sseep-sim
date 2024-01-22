@@ -59,7 +59,7 @@ ggplot(errors) +
   labs(x = "Year", y = "Relative error", title = str_c("Distribution of relative errors for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "RelErrBoxPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+ggsave(str_c(species, season, "50RelErrBoxPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
 
 # absolute relative error plot
 ggplot(errors) +
@@ -68,9 +68,9 @@ ggplot(errors) +
   labs(x = "Year", y = "Absolute relative error", title = str_c("Distribution of absolute relative errors for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "AbsRelErrBoxPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+ggsave(str_c(species, season, "50AbsRelErrBoxPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
 
 
 ## SAVE THE DATA ####
-saveRDS(errors, here(perform.metrics, str_c(species, season, "all-rel-error.rds", sep = "_")))
+saveRDS(errors, here(perform.metrics, str_c(species, season, "all-50rel-error.rds", sep = "_")))
 

@@ -37,7 +37,7 @@ ages <- 0:7
 years <- 1:5
 
 ### number of simulations
-nsims <- 1:2
+nsims <- 1:50
 
 ### trawl dimensions
 trawl_dim <- c(2.7, 0.014)
@@ -63,7 +63,7 @@ resample_cells <- TRUE
 
 ### LOAD DATA ####
 # simulated abundance and distributions created here("R", "03_append_distributions.R")
-pop <- readRDS(here(dist.dat, str_c(species, "_abund-dist.rds", sep = "")))
+pop <- readRDS(here(dist.dat, str_c(species, season, "50abund-dist.rds", sep = "_")))
 
 # simulated status quo survey data created here("R", "04a_simulate_status-quo-survey.R")
 survdat_sq <- readRDS(here(survdat, str_c(species, season, "sq-survdat.rds", sep = "_")))
@@ -99,11 +99,12 @@ wind_summ <- map(wind_tows, ~group_by(.x, sim, year, strat) |>
                    mutate(count = map(data, ~length(.$set))) |> rename(wind_tows = data))
 
 ## Generate new locations ####
-# join the count data with the grid in order to sample the grip
+# join the count data with the grid with remaining cells outside wind areas in order to sample the grid
 join_data <- map2(wind_summ, out_wa_grid, ~left_join(.x, .y, by="strat"))
 
 #filter out the nulls (strata where no cells remain outside of wind areas)
 join_data2 <- map2(join_data, out_strat, ~filter(.x, strat %in% .y))
+
 # check that only nulls were removed
 map2(join_data, join_data2, ~anti_join(.x, .y, by=c("sim", "strat", "year")))
 
@@ -144,7 +145,7 @@ survdat_reall <- map2(survdat_precl, survdat_new_locs, ~bind_rows(.x, .y$setdet)
 
 
 ## SAVE THE DATA ####
-saveRDS(survdat_new_locs, here(survdat, str_c(species, season, "new-locs-survdat.rds", sep = "_")))
-saveRDS(survdat_reall, here(survdat, str_c(species, season, "reall-survdat.rds", sep = "_")))
+saveRDS(survdat_new_locs, here(survdat, str_c(species, season, "50new-locs-survdat.rds", sep = "_")))
+saveRDS(survdat_reall, here(survdat, str_c(species, season, "reall-50survdat.rds", sep = "_")))
 
 

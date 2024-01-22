@@ -21,7 +21,7 @@ theme_set(theme_bw())
 
 ### DATA SET UP ####
 # data locations
-# sseep.analysis <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis"
+sseep.analysis <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis"
 survdat <- here("data", "rds", "survdat")
 surv.prods <- here("data", "rds", "surv-prods")
 plots <- here("outputs", "plots")
@@ -82,7 +82,7 @@ true_med <- trueN |>
 # calculate the abundance index and relative abundance index for each of the scenarios
 
 ### Status Quo ####
-ihat_sq <- map(survdat_sq, ~as_tibble(.$setdet) |> sim_stratmean( strata_wts = strata_wts, survey_area = survey_area) |>
+ihat_sq <- map(survdat_sq, ~as_tibble(.$setdet) |> sim_stratmean(strata_wts = strata_wts, survey_area = survey_area) |>
               mutate(rel_ihat = stratmu/mean(stratmu),
                      scenario = "Status Quo")) |>
   map_dfr(~pluck(.), .id = "sim")
@@ -125,13 +125,13 @@ ggplot() +
   # scale_fill_manual(name = "Type", values = c("darkblue", "red")) +
   theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "MedRelAbundPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 10, height = 6)
+ggsave(str_c(species, season, "Med50RelAbundPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 10, height = 6)
 
 
 ## SAVE THE DATA ####
-saveRDS(trueN, here(surv.prods, str_c(species, season, "rel-TrueN.rds", sep = "_")))
-saveRDS(indices, here(surv.prods, str_c(species, season, "all-ihat.rds", sep = "_")))
-saveRDS(ihat_sq, here(surv.prods, str_c(species, season, "sq_rel-ihat.rds", sep = "_")))
-saveRDS(ihat_precl, here(surv.prods, str_c(species, season, "precl_rel-ihat.rds", sep = "_")))
-saveRDS(ihat_reall, here(surv.prods, str_c(species, season, "reall_rel-ihat.rds", sep = "_")))
+saveRDS(trueN, here(surv.prods, str_c(species, season, "50rel-TrueN.rds", sep = "_")))
+saveRDS(indices, here(surv.prods, str_c(species, season, "all-ihat50.rds", sep = "_")))
+saveRDS(ihat_sq, here(surv.prods, str_c(species, season, "sq_50rel-ihat.rds", sep = "_")))
+saveRDS(ihat_precl, here(surv.prods, str_c(species, season, "precl_50rel-ihat.rds", sep = "_")))
+saveRDS(ihat_reall, here(surv.prods, str_c(species, season, "reall_50rel-ihat.rds", sep = "_")))
 

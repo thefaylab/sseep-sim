@@ -38,7 +38,7 @@ ages <- 0:7
 years <- 1:5
 
 ### number of simulations
-nsims <- 1:2
+nsims <- 1:50
 
 ### LOAD DATA ####
 ### the NE bts survey grid
@@ -139,6 +139,6 @@ pop <- map2(pop, dist_list, ~append(.x, .y)) |>
   map(~list(pop = .)) # prep for mapping through sim_survey() in future script
 
 ## SAVE THE DATA ####
-saveRDS(pop, here(dist.dat, str_c(species, season, "abund-dist.rds", sep = "_")))
+saveRDS(pop, here(dist.dat, str_c(species, season, "50abund-dist.rds", sep = "_")))
 
 
