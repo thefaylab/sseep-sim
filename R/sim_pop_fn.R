@@ -22,9 +22,6 @@ sim_pop <- function(iter, ages, years, Rec_age0, Z, Linf, K, ...) {
                        N0 = sim_N0(N0 = "exp",
                                    plot = FALSE),
                        growth = sim_vonB(Linf = Linf,
-                                         L0 = 5,
                                          K = K,
-                                         log_sd = 0.1,
-                                         plot = FALSE,
-                                         length_group = 3)))
+                                         plot = FALSE)))
 }
