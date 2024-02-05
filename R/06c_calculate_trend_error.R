@@ -1,5 +1,5 @@
 ### created: 01/22/2024
-### updated:
+### updated: 02/05/2024
 
 # 06c - CALCULATE ERROR IN TREND OVER TIME ####
 
@@ -63,19 +63,19 @@ indices_lm <- indices |>
   unnest(cols = slope)
 
 
-indices_lm |>
+slope_errors <- indices_lm |>
   select(sim, term, estimate) |>
   left_join(trueN_lm[1:3], by = "sim") |>
   janitor::clean_names() |>
-  mutate(rel_err = (estimate_x-estimate_y)/estimate_x,
-         abs_rel_err = abs(rel_err)) |>
-  group_by(scenario) |>
-  summarise(med_rel_err = median(rel_err),
-            med_abs_err = median(abs_rel_err),
-            lower_rel = quantile(rel_err, 0.025),
-            upper_rel = quantile(rel_err, 0.975),
-            lower_abs = quantile(abs_rel_err, 0.025),
-            upper_abs = quantile(abs_rel_err, 0.975)) #|>
+  mutate(rel_err = (estimate_x-estimate_y)/estimate_y,
+         abs_rel_err = abs(rel_err)) #|>
+  # group_by(scenario) |>
+  # summarise(med_rel_err = median(rel_err),
+  #           med_abs_err = median(abs_rel_err),
+  #           lower_rel = quantile(rel_err, 0.025),
+  #           upper_rel = quantile(rel_err, 0.975),
+  #           lower_abs = quantile(abs_rel_err, 0.025),
+  #           upper_abs = quantile(abs_rel_err, 0.975)) #|>
   #   ggplot() +
   # aes(x = as.factor(scenario), y = med_rel_err) +
   # geom_point(position = position_dodge2(width = 0.2)) +
@@ -87,8 +87,8 @@ indices_lm |>
 ggplot(indices_lm) +
   geom_boxplot(aes(x = as.factor(scenario), y = estimate, color = scenario)) +
   # ylim(0, NA) +
-  labs(x = "Year", y = "CV", title = str_c("Distribution of CVs for", season, species, "survey", sep = " ")) +
+  labs(x = "Year", y = "Linear regression slope estimates", title = str_c("Distribution of linear regression slope estimates for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "50CV-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+ggsave(str_c(species, season, "lm-ests-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
 

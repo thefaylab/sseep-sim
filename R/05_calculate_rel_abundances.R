@@ -1,13 +1,13 @@
 ### created: 01/18/2024
-### updated:
+### updated: 02/05/2024
 
 # 05 - CALCULATE RELATIVE ABUNDANCES ####
 
 
 ## Objective ####
-# For a given species, distribution, and survey, calulate the relative true abundnace and the relative abundance index over time.
+# For a given species, distribution, and survey, calculate the relative true abundance and the relative abundance index.
 
-# Outputs:
+# Outputs: Relative true abundance and abundance indices for each year and simulation of the projection standardized to the average abundance or abundance index over time
 
 ### PACKAGES ####
 library(sdmTMB)
@@ -22,6 +22,7 @@ theme_set(theme_bw())
 ### DATA SET UP ####
 # data locations
 sseep.analysis <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis"
+dist.dat <- here("data", "rds", "dists")
 survdat <- here("data", "rds", "survdat")
 surv.prods <- here("data", "rds", "surv-prods")
 plots <- here("outputs", "plots")
@@ -36,6 +37,9 @@ season <- "fall"
 ### LOAD DATA ####
 # simulated abundance and distributions created here("R", "03_append_distributions.R")
 pop <- readRDS(here(dist.dat, str_c(species, "_abund-dist.rds", sep = "")))
+
+# filtered sdmTMB distribution predictions created here("R", "03_append_distributions.R"); to be used to filter sampling spatial frame
+dist <- readRDS(here(dist.dat, str_c(species, season, "_sdm-dist-only.rds", sep = "_")))
 
 # simulated status quo survey data created here("R", "04a_simulate_status-quo-survey.R")
 survdat_sq <- readRDS(here(survdat, str_c(species, season, "sq-survdat.rds", sep = "_")))
@@ -81,20 +85,23 @@ true_med <- trueN |>
 ## Abundance Index ####
 # calculate the abundance index and relative abundance index for each of the scenarios
 
+# extract the strata that were used to predict spatial distributions in sdmTMB
+strat <- map(dist, ~unique(.$strat))
+
 ### Status Quo ####
-ihat_sq <- map(survdat_sq, ~as_tibble(.$setdet) |> sim_stratmean(strata_wts = strata_wts, survey_area = survey_area) |>
+ihat_sq <- map(survdat_sq, ~as_tibble(.$setdet) |> filter(strat %in% strat) |> sim_stratmean(strata_wts = strata_wts, survey_area = survey_area) |>
               mutate(rel_ihat = stratmu/mean(stratmu),
                      scenario = "Status Quo")) |>
   map_dfr(~pluck(.), .id = "sim")
 
 ### Precluded Survey ####
-ihat_precl <- map(survdat_precl, ~as_tibble(.) |> sim_stratmean(strata_wts = strata_wts, survey_area = survey_area) |>
+ihat_precl <- map(survdat_precl, ~as_tibble(.) |> filter(strat %in% strat) |> sim_stratmean(strata_wts = strata_wts, survey_area = survey_area) |>
                  mutate(rel_ihat = stratmu/mean(stratmu),
                         scenario = "Preclusion")) |>
   map_dfr(~pluck(.), .id = "sim")
 
 ### Reallocated Survey ####
-ihat_reall <- map(survdat_reall, ~as_tibble(.x) |> sim_stratmean(strata_wts = strata_wts, survey_area = survey_area) |>
+ihat_reall <- map(survdat_reall, ~as_tibble(.x) |> filter(strat %in% strat) |> sim_stratmean(strata_wts = strata_wts, survey_area = survey_area) |>
                  mutate(rel_ihat = stratmu/mean(stratmu),
                         scenario = "Reallocation")) |>
   map_dfr(~pluck(.), .id = "sim")
@@ -129,9 +136,9 @@ ggsave(str_c(species, season, "Med50RelAbundPlot.png", sep = "_"), device = "png
 
 
 ## SAVE THE DATA ####
-saveRDS(trueN, here(surv.prods, str_c(species, season, "50rel-TrueN.rds", sep = "_")))
-saveRDS(indices, here(surv.prods, str_c(species, season, "all-ihat50.rds", sep = "_")))
-saveRDS(ihat_sq, here(surv.prods, str_c(species, season, "sq_50rel-ihat.rds", sep = "_")))
-saveRDS(ihat_precl, here(surv.prods, str_c(species, season, "precl_50rel-ihat.rds", sep = "_")))
-saveRDS(ihat_reall, here(surv.prods, str_c(species, season, "reall_50rel-ihat.rds", sep = "_")))
+saveRDS(trueN, here(surv.prods, str_c(species, season, "rel-TrueN.rds", sep = "_")))
+saveRDS(indices, here(surv.prods, str_c(species, season, "all-ihat.rds", sep = "_")))
+saveRDS(ihat_sq, here(surv.prods, str_c(species, season, "sq_rel-ihat.rds", sep = "_")))
+saveRDS(ihat_precl, here(surv.prods, str_c(species, season, "precl_rel-ihat.rds", sep = "_")))
+saveRDS(ihat_reall, here(surv.prods, str_c(species, season, "reall_rel-ihat.rds", sep = "_")))
 

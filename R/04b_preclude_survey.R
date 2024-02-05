@@ -1,11 +1,11 @@
 ### created: 01/18/2024
-### updated:
+### updated: 02/05/2024
 
 # 04b - PRECLUDE SURVEY FROM WIND ENERGY AREAS ####
 
 
 ## Objective ####
-# For a given species, distribution, an survey sets are removed from the simulated tow level data if they occurred in a cell indexed as a wind cell representing an overlap with offshore wind energy areas.
+# For a given species, distribution, and survey, sets are removed from the simulated tow level data if they occurred in a cell indexed as a wind cell representing an overlap with offshore wind energy areas.
 
 # Outputs: one survey and respective tow level data occurring outside of offshore wind energy areas only for each replicate of a simulated population and abundance
 
@@ -46,4 +46,4 @@ survdat_precl <- map(survdat_sq, ~filter(.$setdet, AREA_CODE == 2))
 
 
 ## SAVE THE DATA ####
-saveRDS(survdat_precl, here(survdat, str_c(species, season, "precl-surv-50pop-dat.rds", sep = "_")))
+saveRDS(survdat_precl, here(survdat, str_c(species, season, "precl-surv-dat.rds", sep = "_")))

@@ -1,5 +1,5 @@
 ### created: 01/18/2024
-### updated:
+### updated: 02/05/2024
 
 # 03 - APPEND DISTRIBUTIONS ####
 
@@ -16,6 +16,7 @@ suppressPackageStartupMessages(library(tidyverse))
 library(data.table)
 library(here)
 # source(here("R", "sim_pop_fn.R"))
+set.seed(131)
 
 
 ### DATA SET UP ####
@@ -38,7 +39,10 @@ ages <- 0:7
 years <- 1:5
 
 ### number of simulations
-nsims <- 1:50
+nsims <- 1:2
+
+### generate a set random numbers to set seed with each iteration for reproducibility
+seed <- sample.int(1e6, length(nsims))
 
 ### LOAD DATA ####
 ### the NE bts survey grid
@@ -47,21 +51,24 @@ grid_xy <- readRDS(here("data", "rds", "survey_grid_062022.rds")) |>
   rename(strat = STRATUM,
          x = X,
          y = Y) |>#, # rename to match column calls within SimSurvey functions
-  #depth = AVGDEPTH) |>
   mutate(division = 1) |>#, # add division information
-  #x = X/1000, # convert to km
-  #y = Y/1000) |>
-  # dplyr::select(x, y, cell, division, strat, depth, AREA_CODE) |>
   data.table::as.data.table()
 
 # as stars object
 grid_stars <- readRDS(here("data",  "survey_grid_stars_062022.rds"))
 
 ### species seasonal spatial distribution predictions
-preds <- readRDS(file = here(sdmtmb.dir, species, "data", str_c(season, "_grid_preds.rds", sep = "")))
+preds <- readRDS(file = here(sdmtmb.dir, species, "data", str_c(season, "_grid_preds.rds", sep = ""))) |>
+  rename(strat = STRATUM,#rename to match column calls in SimSurvey
+         depth = AVGDEPTH,
+         x = X,
+         y = Y) |>
+  mutate(N_dist = exp(est),
+         EST_YEAR = as.integer(as.character(EST_YEAR))) |> # convert the factored year into an integer for random sampling
+  dplyr::select(!c(est_non_rf, est_rf, omega_s, epsilon_st, est))
 
-# load spring model predictions
-# spring_preds <- readRDS(file = here(sdmtmb.dir, species, "data", "spring_grid_preds.rds"))
+# extract strata for spatial prediction footprint for the given species
+pred_strat <- unique(preds$STRATUM)
 
 ### simulated species abundance
 pop <- readRDS(here(pop.dat, str_c(species, "_pop.rds", sep = "")))
@@ -71,30 +78,38 @@ Nage <- readRDS(here(Nage.dat, str_c(species, "_Nage.rds", sep = "")))
 
 
 ## Distribute numbers at age ####
+# randomly sample the grid years to serve as a simulation output for the projected years of the population
+dist_yrs <- map2(nsims, seed, ~sample_years(years, preds$EST_YEAR, replace = TRUE, seed = .y)) #|> #janitor::clean_names()
+  # map_dfc(~pluck(.) |> mutate(year = years))
+
+
 ### Filter predictions ####
-preds <- preds |>
-  filter(EST_YEAR %in% c(2014:2016, 2018, 2019)) |>
-  rename(year = EST_YEAR, #rename to match column calls in SimSurvey
-         strat = STRATUM,
-         depth = AVGDEPTH,
-         x = X,
-         y = Y) |>
-  mutate(N_dist = exp(est),
-         year = case_when( # change the year values based on their sequence
-           year == 2014 ~ 1,
-           year == 2015 ~ 2,
-           year == 2016 ~ 3,
-           year == 2018 ~ 4,
-           year == 2019 ~ 5
-         )) |>#,
-  #cell = seq(1:length(N_dist))) |> # add cell # value
-  dplyr::select(x,y, year, N_dist, cell, strat, depth) |>
-  data.table::as.data.table()
+preds_list <- map2(dist_yrs, seed, ~filter_distributions(year_samps = .x, preds, seed = .y) |>
+                     data.table::as.data.table()) #|> map(~list(data = .))
+
+# preds <- preds |>
+#   filter(EST_YEAR %in% c(2014:2016, 2018, 2019)) |>
+#   rename(year = EST_YEAR, #rename to match column calls in SimSurvey
+#          strat = STRATUM,
+#          depth = AVGDEPTH,
+#          x = X,
+#          y = Y) |>
+#   mutate(N_dist = exp(est),
+#          year = case_when( # change the year values based on their sequence
+#            year == 2014 ~ 1,
+#            year == 2015 ~ 2,
+#            year == 2016 ~ 3,
+#            year == 2018 ~ 4,
+#            year == 2019 ~ 5
+#          )) |>#,
+#   #cell = seq(1:length(N_dist))) |> # add cell # value
+#   dplyr::select(x,y, year, N_dist, cell, strat, depth) |>
+#   data.table::as.data.table()
 
 ### Calculate probability of distributions ####
-dist <- sdmTMB::replicate_df(preds, "age", ages) |> # replicate the predictions over each age, so there are distributions for each age
-  sdmTMB::replicate_df("sim", nsims) |> # replicate the predictions over the number of iterations, so there are distributions for each replicate
-  left_join(Nage, by = c("sim", "age")) |> # join populations at age to the predictions
+dist <- map(preds_list, ~sdmTMB::replicate_df(., "age", ages)) |> # replicate the predictions over each age, so there are distributions for each age
+  map(~sdmTMB::replicate_df(., "sim", nsims)) |> # replicate the predictions over the number of iterations, so there are distributions for each replicate
+  map(~left_join(.x, Nage, by = c("sim", "age")) |> # join populations at age to the predictions
   rename(Nage = "pluck_n0") |>
   group_by(year, age, sim) |>
   mutate(P_i = N_dist/sum(N_dist), # probability of distribution
@@ -102,7 +117,8 @@ dist <- sdmTMB::replicate_df(preds, "age", ages) |> # replicate the predictions 
          age = as.double(age),
          cell = as.double(cell),
          division = 1) |>
-  dplyr::select(sim, age, year, cell, N, x, y, strat, division, depth)
+  dplyr::select(!c(Nage, P_i, N_dist)) |>
+  data.table::as.data.table())
 
 ### Force zeros at age ####
 no_dist <- dplyr::anti_join(grid_xy, preds, by = c("x", "y", "cell")) |>
@@ -112,10 +128,12 @@ no_dist <- dplyr::anti_join(grid_xy, preds, by = c("x", "y", "cell")) |>
   mutate(N = 0,
          age = as.double(age),
          cell = as.double(cell),
-         division = 1)
+         division = 1) |>
+  data.table::as.data.table() |>
+  list()
 
 ### Bind distributions ####
-full_dist <- bind_rows(no_dist, dist)
+full_dist <- map2(dist, no_dist, ~bind_rows(.x, .y))
 
 ## Append population object ####
 ### The grid ####
@@ -131,7 +149,7 @@ pop <- map2(pop, grids, ~append(.x, .y))
 ### Spatial distribution ####
 # create list object from full distribution object with each item derived by replicate
 dist_list <- full_dist |>
-  split(by = "sim") |>
+  # split(by = "sim") |>
   map(~list(sp_N = .)) # title each item as `sp_N` to match SimSurvey calls
 
 # append the distributions to the simulated abundance object
@@ -139,6 +157,6 @@ pop <- map2(pop, dist_list, ~append(.x, .y)) |>
   map(~list(pop = .)) # prep for mapping through sim_survey() in future script
 
 ## SAVE THE DATA ####
-saveRDS(pop, here(dist.dat, str_c(species, season, "50abund-dist.rds", sep = "_")))
-
+saveRDS(pop, here(dist.dat, str_c(species, season, "_abund-dist.rds", sep = "_")))
+saveRDS(dist, here(dist.dat, str_c(species, season, "_sdm-dist-only.rds", sep = "_")))
 

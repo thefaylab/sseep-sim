@@ -1,5 +1,5 @@
 ### created: 01/18/2024
-### updated:
+### updated: 02/05/2024
 
 # 04a - SIMULATE STATUS QUO SURVEY ####
 
@@ -16,6 +16,7 @@ suppressPackageStartupMessages(library(tidyverse))
 library(data.table)
 library(here)
 # source(here("R", "sim_pop_fn.R"))
+set.seed(1462)
 
 
 ### DATA SET UP ####
@@ -82,6 +83,6 @@ survdat_sq <- map(pop, ~sim_survey(.$pop,
 
 
 ## SAVE THE DATA ####
-saveRDS(survdat_sq, here(survdat, str_c(species, season, "sq-surv-50pop-dat.rds", sep = "_")))
+saveRDS(survdat_sq, here(survdat, str_c(species, season, "sq-surv-dat.rds", sep = "_")))
 
 

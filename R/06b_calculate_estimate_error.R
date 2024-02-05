@@ -44,5 +44,5 @@ ggplot(errors) +
   labs(x = "Year", y = "CV", title = str_c("Distribution of CVs for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "50CV-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+ggsave(str_c(species, season, "CV-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
 

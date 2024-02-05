@@ -5,9 +5,11 @@
 
 
 ## Objective ####
-#
+# For a given species and iteration, calculate the relative and absolute error to compare an abundance index to the true abundance
 
 # Outputs:
+#  a dataframe with values for each simulation and year pertaining to the relative error and absolute relative error of a given survey and its abundance index compared to the relative true abundance
+# the relative errors and absolute errors for a given survey scenario plotted across time
 
 ### PACKAGES ####
 library(sdmTMB)
@@ -45,7 +47,7 @@ indices <- readRDS(here(surv.prods, str_c(species, season, "all-ihat.rds", sep =
 ## CALCULATE RELATIVE AND ABSOLUTE ERRORS ####
 errors <- indices |>
    left_join(trueN, by = c("sim", "year")) |>
-   mutate(rel_err = (rel_ihat-rel_N)/rel_ihat,
+   mutate(rel_err = (rel_ihat-rel_N)/rel_N,
           abs_rel_err = abs(rel_err)) |>
   dplyr::select(!scenario.y) |>
   rename(scenario = scenario.x)
@@ -59,7 +61,7 @@ ggplot(errors) +
   labs(x = "Year", y = "Relative error", title = str_c("Distribution of relative errors for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "50RelErrBoxPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+ggsave(str_c(species, season, "RelErrBoxPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
 
 # absolute relative error plot
 ggplot(errors) +
@@ -68,9 +70,9 @@ ggplot(errors) +
   labs(x = "Year", y = "Absolute relative error", title = str_c("Distribution of absolute relative errors for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "50AbsRelErrBoxPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+ggsave(str_c(species, season, "AbsRelErrBoxPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
 
 
 ## SAVE THE DATA ####
-saveRDS(errors, here(perform.metrics, str_c(species, season, "all-50rel-error.rds", sep = "_")))
+saveRDS(errors, here(perform.metrics, str_c(species, season, "all-rel-error.rds", sep = "_")))
 

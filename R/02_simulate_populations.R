@@ -1,5 +1,5 @@
 ### created: 01/18/2024
-### updated:
+### updated: 02/05/2024
 
 # 02 - SIMULATE POPULATIONS ####
 
@@ -14,6 +14,8 @@ library(SimSurvey)
 suppressPackageStartupMessages(library(tidyverse))
 library(here)
 source(here("R", "sim_pop_fn.R"))
+# random seed number for generating different populations but for reproducibility of simulation
+set.seed(131)
 
 
 ### DATA SET UP ####
@@ -23,6 +25,12 @@ Nage.dat <- here("data", "rds", "Nages")
 
 ### name of species to be simulated
 species <- "sumflounder"
+
+### number of simulations
+nsims <- 1:2
+
+# generate a set random numbers to set seed with each iteration for reproducibility
+seed <- sample.int(1e6, length(nsims))
 
 
 #### STOCK ASSESSMENT VALUES ####
@@ -58,11 +66,9 @@ Linf = 83.6
 K = 0.14
 
 
-## SIMULATE ABUNDANCE ####
-# random seed numbers for generating different populations but for reproducibility of simulation
-set.seed(131)
 
-pop <- sim_pop(50, ages, years, Rec_age0, Z, Linf, K)
+## SIMULATE ABUNDANCE ####
+pop <- sim_pop(iter = length(nsims), ages, years, Rec_age0, Z, Linf, K)
 
 ### EXTRACT N AT AGE MATRIX ####
 Nage <- map_df(pop, ~pluck(., "N0") |>
@@ -73,8 +79,8 @@ Nage <- map_df(pop, ~pluck(., "N0") |>
 
 
 ## SAVE THE DATA ####
-saveRDS(pop, here(pop.dat, str_c(species, "_50pop.rds", sep = "")))
-saveRDS(Nage, here(Nage.dat, str_c(species, "_50Nage.rds", sep = "")))
+saveRDS(pop, here(pop.dat, str_c(species, "_pop.rds", sep = "")))
+saveRDS(Nage, here(Nage.dat, str_c(species, "_Nage.rds", sep = "")))
 
 
 

@@ -1,13 +1,16 @@
 ### created: 01/18/2024
-### updated:
+### updated: 02/05/2024
 
 # 04c - SIMULATE REALLOCATED SURVEY ####
 
 
 ## Objective ####
-# For a given species and distribution, simulate the status quo NMFS bottom trawl survey.
+# identify and calculate the number of sets that occurred in a wind area and the strata in which those sets and wind areas occurred
+# remove wind cells from the grid and sample the remaining cells in the same strata that precluded wind tows occurred and for the same number of tows that were precluded
+# set these new sampled cells as new locations and simulate a status quo NMFS bottom trawl survey.
+# bind the resulting tow level data to the dataset where wind tows and catch rates were removed
 
-# Outputs: one survey and respective tow level data for each replicate of a simulated population and abundance
+# Outputs: locations of reallocated tows in strata where wind tows were precluded, and a full survey with tow level data for each replicate of a simulated population and abundance.
 
 ### PACKAGES ####
 library(sdmTMB)
@@ -16,7 +19,7 @@ suppressPackageStartupMessages(library(tidyverse))
 library(data.table)
 library(here)
 # source(here("R", "sim_pop_fn.R"))
-
+set.seed(1533)
 
 ### DATA SET UP ####
 # data locations
@@ -37,7 +40,7 @@ ages <- 0:7
 years <- 1:5
 
 ### number of simulations
-nsims <- 1:50
+nsims <- 1:2
 
 ### trawl dimensions
 trawl_dim <- c(2.7, 0.014)
@@ -106,7 +109,7 @@ join_data <- map2(wind_summ, out_wa_grid, ~left_join(.x, .y, by="strat"))
 join_data2 <- map2(join_data, out_strat, ~filter(.x, strat %in% .y))
 
 # check that only nulls were removed
-map2(join_data, join_data2, ~anti_join(.x, .y, by=c("sim", "strat", "year")))
+map2(join_data, join_data2, ~anti_join(.x, .y, by=c("sim", "strat", "year"))) |> head(2)
 
 # sample new locations and create a set dataframe to supply to custom_sets argument
 new_locations <- map(join_data2,
@@ -123,8 +126,6 @@ new_locations <- map(join_data2,
 # less tows bc could not reallocate 0320 tows
 
 ## Simulate New Tow Data ####
-set.seed(13487)
-
 survdat_new_locs <- map2(pop, new_locations, ~sim_survey(.x$pop,
                                    n_sims = 1, # one survey per item in population list object
                                    trawl_dim = trawl_dim,
@@ -145,7 +146,7 @@ survdat_reall <- map2(survdat_precl, survdat_new_locs, ~bind_rows(.x, .y$setdet)
 
 
 ## SAVE THE DATA ####
-saveRDS(survdat_new_locs, here(survdat, str_c(species, season, "50new-locs-survdat.rds", sep = "_")))
-saveRDS(survdat_reall, here(survdat, str_c(species, season, "reall-50survdat.rds", sep = "_")))
+saveRDS(survdat_new_locs, here(survdat, str_c(species, season, "locs-survdat.rds", sep = "_")))
+saveRDS(survdat_reall, here(survdat, str_c(species, season, "reall-survdat.rds", sep = "_")))
 
 
