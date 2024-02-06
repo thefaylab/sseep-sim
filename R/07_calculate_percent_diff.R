@@ -1,5 +1,5 @@
 ### created: 02/05/2024
-### updated:
+### updated: 02/06/2024
 
 # 07 - CALCULATE PERCENT DIFFERENCE FOR SCENARIOS ####
 
@@ -36,17 +36,21 @@ season <- "fall"
 ### LOAD DATA ####
 # relative abunance indices for each survey effort scenario created here("R", "05_calculate_rel_abundance.R")
 ### STATUS QUO
-ihat_sq <- readRDS(here(surv.prods, str_c(species, season, "sq_rel-ihat.rds", sep = "_")))
+# ihat_sq <- readRDS(here(surv.prods, str_c(species, season, "sq_rel-ihat.rds", sep = "_")))
+ihat_sq1 <- readRDS(here(surv.prods, str_c(species, season, "1pop-20sq_rel-ihat.rds", sep = "_")))
+
 
 ### PRECLUSION
-ihat_precl <- readRDS(here(surv.prods, str_c(species, season, "precl_rel-ihat.rds", sep = "_")))
+# ihat_precl <- readRDS(here(surv.prods, str_c(species, season, "precl_rel-ihat.rds", sep = "_")))
+ihat_precl1 <- readRDS(here(surv.prods, str_c(species, season, "1pop-20precl_rel-ihat.rds", sep = "_")))
 
 ### REALLOCATION
-ihat_reall <- readRDS(here(surv.prods, str_c(species, season, "reall_rel-ihat.rds", sep = "_")))
+# ihat_reall <- readRDS(here(surv.prods, str_c(species, season, "reall_rel-ihat.rds", sep = "_")))
+ihat_reall1 <- readRDS(here(surv.prods, str_c(species, season, "1pop-20reall_rel-ihat.rds", sep = "_")))
 
 ## CALCULATE ABSOLUTE PERCENT DIFFERENCES ####
 ### Status Quo vs Preclusion ####
-sq_precl_diff <- left_join(ihat_sq, ihat_precl, by = c("sim", "year")) |>
+sq_precl_diff <- left_join(ihat_sq1, ihat_precl1, by = c("sim", "year")) |>
   janitor::clean_names() |>
   group_by(sim, year) |>
   mutate(perc_diff_mu =( abs(rel_ihat_x - rel_ihat_y) / rel_ihat_x)*100,
@@ -57,7 +61,7 @@ sq_precl_diff <- left_join(ihat_sq, ihat_precl, by = c("sim", "year")) |>
 
 
 ### Status Quo vs Reallocation ####
-sq_reall_diff <- left_join(ihat_sq, ihat_reall, by = c("sim", "year")) |>
+sq_reall_diff <- left_join(ihat_sq1, ihat_reall1, by = c("sim", "year")) |>
   janitor::clean_names() |>
   group_by(sim, year) |>
   mutate(perc_diff_mu =( abs(rel_ihat_x - rel_ihat_y) / rel_ihat_x)*100,

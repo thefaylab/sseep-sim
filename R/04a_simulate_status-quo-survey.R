@@ -16,7 +16,7 @@ suppressPackageStartupMessages(library(tidyverse))
 library(data.table)
 library(here)
 # source(here("R", "sim_pop_fn.R"))
-set.seed(1462)
+set.seed(131)
 
 
 ### DATA SET UP ####
@@ -38,6 +38,12 @@ ages <- 0:7
 
 ### years projected
 years <- 1:5
+
+### number of simulations
+nsims <- 1:2
+
+### number of simulations
+nsurveys <- 20
 
 ### trawl dimensions
 trawl_dim <- c(2.7, 0.014)
@@ -63,15 +69,14 @@ resample_cells <- TRUE
 
 ### LOAD DATA ####
 # simulated abundance and distributions created here("R", "03_append_distributions.R")
-pop <- readRDS(here(dist.dat, str_c(species, "_abund-dist.rds", sep = "")))
+pop <- readRDS(here(dist.dat, str_c(species, season, length(nsims), "abund-dist.rds", sep = "_")))
 
+pop_nw <- readRDS(here(dist.dat, str_c(species, season, length(nsims), "nowind-abund-dist.rds", sep = "_")))
 
 
 ## SIMULATE SURVEY ####
-set.seed(13487)
-
 survdat_sq <- map(pop, ~sim_survey(.$pop,
-                                   n_sims = 1, # one survey per item in population list object
+                                   n_sims = nsurveys, # one survey per item in population list object
                                    trawl_dim = trawl_dim,
                                    q = catch_q,
                                    set_den = set_den,
@@ -81,8 +86,20 @@ survdat_sq <- map(pop, ~sim_survey(.$pop,
                                    resample_cells = resample_cells)
 )
 
+survdat_sq_nw <- map(pop_nw, ~sim_survey(.$pop,
+                                   n_sims = nsurveys, # one survey per item in population list object
+                                   trawl_dim = trawl_dim,
+                                   q = catch_q,
+                                   set_den = set_den,
+                                   min_sets = min_sets,
+                                   age_sampling = age_sampling,
+                                   age_space_group = age_space_group,
+                                   resample_cells = resample_cells))
+
+
 
 ## SAVE THE DATA ####
-saveRDS(survdat_sq, here(survdat, str_c(species, season, "sq-surv-dat.rds", sep = "_")))
+saveRDS(survdat_sq, here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat.rds", sep = "_")))
+saveRDS(survdat_sq_nw, here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat_nw.rds", sep = "_")))
 
 

@@ -19,7 +19,7 @@ suppressPackageStartupMessages(library(tidyverse))
 library(data.table)
 library(here)
 # source(here("R", "sim_pop_fn.R"))
-set.seed(1533)
+set.seed(131)
 
 ### DATA SET UP ####
 # data locations
@@ -41,6 +41,9 @@ years <- 1:5
 
 ### number of simulations
 nsims <- 1:2
+
+### number of simulations
+nsurveys <- 20
 
 ### trawl dimensions
 trawl_dim <- c(2.7, 0.014)
@@ -67,13 +70,16 @@ resample_cells <- TRUE
 ### LOAD DATA ####
 # simulated abundance and distributions created here("R", "03_append_distributions.R")
 pop <- readRDS(here(dist.dat, str_c(species, season, "50abund-dist.rds", sep = "_")))
+# pop_nw <- readRDS(here(dist.dat, str_c(species, season, length(nsims), "nowind-abund-dist.rds", sep = "_"))) # with wind effect turned off
 
 # simulated status quo survey data created here("R", "04a_simulate_status-quo-survey.R")
-survdat_sq <- readRDS(here(survdat, str_c(species, season, "sq-survdat.rds", sep = "_")))
+survdat_sq <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat.rds", sep = "_")))
+# survdat_sq_nw <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat_nw.rds", sep = "_"))) # where wind effect is turned off
 
 # simulated status quo survey data created here("R", "04b_preclude_survey.R")
-survdat_precl <- readRDS(here(survdat, str_c(species, season, "precl-survdat.rds", sep = "_")))
-
+survdat_precl <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "precl-surv-dat.rds", sep = "_")))
+# survdat_precl_nw <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "precl-surv-dat_nw.rds", sep = "_")))
+ # where wind effect is turned off
 
 ## Identify tows ####
 #tows occuring inside wind areas | AREA CODE = 1
@@ -127,7 +133,7 @@ new_locations <- map(join_data2,
 
 ## Simulate New Tow Data ####
 survdat_new_locs <- map2(pop, new_locations, ~sim_survey(.x$pop,
-                                   n_sims = 1, # one survey per item in population list object
+                                   n_sims = nsurveys, # one survey per item in population list object
                                    trawl_dim = trawl_dim,
                                    q = catch_q,
                                    set_den = set_den,
@@ -146,7 +152,9 @@ survdat_reall <- map2(survdat_precl, survdat_new_locs, ~bind_rows(.x, .y$setdet)
 
 
 ## SAVE THE DATA ####
-saveRDS(survdat_new_locs, here(survdat, str_c(species, season, "locs-survdat.rds", sep = "_")))
-saveRDS(survdat_reall, here(survdat, str_c(species, season, "reall-survdat.rds", sep = "_")))
+saveRDS(survdat_new_locs, here(survdat, str_c(species, season, length(nsims), "sims", "locs", nsurveys, "survdat.rds", sep = "_")))
+saveRDS(survdat_reall, here(survdat, str_c(species, season, length(nsims), "sims", "reall", nsurveys, "survdat.rds", sep = "_")))
+# saveRDS(survdat_new_locs, here(survdat, str_c(species, season, length(nsims), "sims", "locs", nsurveys, "survdat_nw.rds", sep = "_")))
+# saveRDS(survdat_reall, here(survdat, str_c(species, season, length(nsims), "sims", "reall", nsurveys, "survdat_nw.rds", sep = "_")))
 
 

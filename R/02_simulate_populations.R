@@ -1,5 +1,5 @@
 ### created: 01/18/2024
-### updated: 02/05/2024
+### updated: 02/06/2024
 
 # 02 - SIMULATE POPULATIONS ####
 
@@ -79,8 +79,8 @@ Nage <- map_df(pop, ~pluck(., "N0") |>
 
 
 ## SAVE THE DATA ####
-saveRDS(pop, here(pop.dat, str_c(species, "_pop.rds", sep = "")))
-saveRDS(Nage, here(Nage.dat, str_c(species, "_Nage.rds", sep = "")))
+saveRDS(pop, here(pop.dat, str_c(species, length(nsims), "pop.rds", sep = "_")))
+saveRDS(Nage, here(Nage.dat, str_c(species, length(nsims), "Nage.rds", sep = "_")))
 
 
 

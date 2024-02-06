@@ -25,7 +25,7 @@ theme_set(theme_bw())
 # data locations
 # sseep.analysis <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis"
 # survdat <- here("data", "rds", "survdat")
-surv.prod <- here("data", "rds", "surv-prods")
+surv.prods <- here("data", "rds", "surv-prods")
 perform.metrics <- here("data", "rds", "perform-metrics")
 plots <- here("outputs", "plots")
 
@@ -41,12 +41,12 @@ season <- "fall"
 trueN <- readRDS(here(surv.prods, str_c(species, season, "rel-TrueN.rds", sep = "_")))
 
 # relative abunance indices across scenarios created here("R", "05_calculate_rel_abundance.R")
-indices <- readRDS(here(surv.prods, str_c(species, season, "all-ihat.rds", sep = "_")))
-
+# indices <- readRDS(here(surv.prods, str_c(species, season, "all-ihat.rds", sep = "_")))
+indices20 <- readRDS(here(surv.prods, str_c(species, season, "all-ihat_1pop-20survs.rds", sep = "_")))
 
 ## CALCULATE RELATIVE AND ABSOLUTE ERRORS ####
-errors <- indices |>
-   left_join(trueN, by = c("sim", "year")) |>
+errors20 <- indices20 |> mutate(sim = as.character(sim))
+   left_join(trueN, by = "year") |>
    mutate(rel_err = (rel_ihat-rel_N)/rel_N,
           abs_rel_err = abs(rel_err)) |>
   dplyr::select(!scenario.y) |>
@@ -55,8 +55,8 @@ errors <- indices |>
 
 ## PLOTS ####
 # relative error plot
-ggplot(errors) +
-  geom_boxplot(aes(x = as.factor(year), y = rel_err, color = scenario)) +
+ggplot(errors20) +
+  geom_boxplot(aes(x = as.factor(year), y = rel_err, color = fct_inorder(scenario))) +
   # ylim(0, NA) +
   labs(x = "Year", y = "Relative error", title = str_c("Distribution of relative errors for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
@@ -65,7 +65,7 @@ ggsave(str_c(species, season, "RelErrBoxPlot.png", sep = "_"), device = "png", l
 
 # absolute relative error plot
 ggplot(errors) +
-  geom_boxplot(aes(x = as.factor(year), y = abs_rel_err, color = scenario)) +
+  geom_boxplot(aes(x = as.factor(year), y = abs_rel_err, color = fct_inorder(scenario))) +
   ylim(0, NA) +
   labs(x = "Year", y = "Absolute relative error", title = str_c("Distribution of absolute relative errors for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
@@ -74,5 +74,5 @@ ggsave(str_c(species, season, "AbsRelErrBoxPlot.png", sep = "_"), device = "png"
 
 
 ## SAVE THE DATA ####
-saveRDS(errors, here(perform.metrics, str_c(species, season, "all-rel-error.rds", sep = "_")))
+saveRDS(errors20, here(perform.metrics, str_c(species, season, "1pop_20all-rel-error.rds", sep = "_")))
 

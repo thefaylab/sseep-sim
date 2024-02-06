@@ -39,7 +39,7 @@ errors <- readRDS(here(perform.metrics, str_c(species, season, "all-rel-error.rd
 
 ## ESTIMATION ERROR ####
 ggplot(errors) +
-  geom_boxplot(aes(x = as.factor(year), y = cv, color = scenario)) +
+  geom_boxplot(aes(x = as.factor(year), y = cv, color = fct_inorder(scenario))) +
   ylim(0, NA) +
   labs(x = "Year", y = "CV", title = str_c("Distribution of CVs for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")

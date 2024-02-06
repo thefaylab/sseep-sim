@@ -29,21 +29,30 @@ species <- "sumflounder"
 ### season to be simulated
 season <- "fall"
 
+### number of simulations
+nsims <- 1:2
+
+### number of simulations
+nsurveys <- 20
+
 
 
 ### LOAD DATA ####
 # simulated status quo survey data created here("R", "04a_simulate_status-quo-survey.R")
-survdat_sq <- readRDS(here(survdat, str_c(species, season, "sq-survdat.rds", sep = "_")))
-
+survdat_sq <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat.rds", sep = "_")))
+survdat_sq_nw <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat_nw.rds", sep = "_")))
 
 ## PRECLUDE SURVEY ####
 # remove tows/sets that were sampled in cells indexed as a wind cell to represent the preclusion of the survey due to offshore wind energy areas
 # `AREA_CODE == 2` represents outside areas
 survdat_precl <- map(survdat_sq, ~filter(.$setdet, AREA_CODE == 2))
+survdat_precl_nw <- map(survdat_sq_nw, ~filter(.$setdet, AREA_CODE == 2))
 
 
 ### to do: add code to filter survdat_sq$samps for length and age data calculations for samples only taken outside of wind energy areas
 
 
 ## SAVE THE DATA ####
-saveRDS(survdat_precl, here(survdat, str_c(species, season, "precl-surv-dat.rds", sep = "_")))
+saveRDS(survdat_precl, here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "precl-surv-dat.rds", sep = "_")))
+saveRDS(survdat_precl_nw, here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "precl-surv-dat_nw.rds", sep = "_")))
+
