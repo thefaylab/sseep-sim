@@ -32,6 +32,18 @@ species <- "sumflounder"
 ### season to be simulated
 season <- "fall"
 
+### ages simulated
+ages <- 0:7
+
+### years projected
+years <- 1:5
+
+### number of simulations
+nsims <- 1:2
+
+### number of simulations
+nsurveys <- 20
+
 ### LOAD DATA ####
 # relative and absolute errors of simulated abundance created here("R", "06a_calculate_actual_abundance.R")
 errors <- readRDS(here(perform.metrics, str_c(species, season, "all-rel-error.rds", sep = "_")))

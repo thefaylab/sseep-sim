@@ -39,6 +39,12 @@ nsims <- 1:2
 ### number of simulations
 nsurveys <- 20
 
+### ages simulated
+ages <- 0:7
+
+### years projected
+years <- 1:5
+
 
 ### LOAD DATA ####
 # simulated abundance and distributions created here("R", "03_append_distributions.R")

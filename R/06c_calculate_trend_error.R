@@ -33,6 +33,18 @@ species <- "sumflounder"
 ### season to be simulated
 season <- "fall"
 
+### ages simulated
+ages <- 0:7
+
+### years projected
+years <- 1:5
+
+### number of simulations
+nsims <- 1:2
+
+### number of simulations
+nsurveys <- 20
+
 ### LOAD DATA ####
 # relative true abundance created here("R", "05_calculate_rel_abundance.R")
 trueN <- readRDS(here(surv.prods, str_c(species, season, "rel-TrueN.rds", sep = "_")))
