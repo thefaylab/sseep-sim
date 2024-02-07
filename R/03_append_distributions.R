@@ -22,6 +22,7 @@ set.seed(131)
 ### DATA SET UP ####
 # data locations
 sdmtmb.dir <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis/sdmtmb"
+sdmtmb.dir <- "~/research/sseep-analysis/sdmtmb"
 pop.dat <- here("data", "rds", "pops")
 Nage.dat <- here("data", "rds", "Nages")
 dist.dat <- here("data", "rds", "dists")
@@ -122,8 +123,8 @@ preds_nowind_list <- map2(dist_yrs, seed, ~filter_distributions(year_samps = .x,
 ### Calculate probability of distributions ####
 dist <- map(preds_list, ~sdmTMB::replicate_df(., "age", ages)) |> # replicate the predictions over each age, so there are distributions for each age
   map(~sdmTMB::replicate_df(., "sim", nsims)) |> # replicate the predictions over the number of iterations, so there are distributions for each replicate
-  map(~left_join(.x, Nage, by = c("sim", "age")) |> # join populations at age to the predictions
-  rename(Nage = "pluck_n0") |>
+  map(~left_join(.x, Nage, by = c("sim", "year","age")) |> # join populations at age to the predictions
+  #rename(Nage = "pluck_n0") |>
   group_by(year, age, sim) |>
   mutate(P_i = N_dist/sum(N_dist), # probability of distribution
          N = Nage * P_i, # multiply probability by simulated numbers of age
@@ -135,8 +136,8 @@ dist <- map(preds_list, ~sdmTMB::replicate_df(., "age", ages)) |> # replicate th
 
 dist_nowind <- map(preds_nowind_list, ~sdmTMB::replicate_df(., "age", ages)) |> # replicate the predictions over each age, so there are distributions for each age
   map(~sdmTMB::replicate_df(., "sim", nsims)) |> # replicate the predictions over the number of iterations, so there are distributions for each replicate
-  map(~left_join(.x, Nage, by = c("sim", "age")) |> # join populations at age to the predictions
-        rename(Nage = "pluck_n0") |>
+  map(~left_join(.x, Nage, by = c("sim", "year","age")) |> # join populations at age to the predictions
+        #rename(Nage = "pluck_n0") |>
         group_by(year, age, sim) |>
         mutate(P_i = N_dist/sum(N_dist), # probability of distribution
                N = Nage * P_i, # multiply probability by simulated numbers of age

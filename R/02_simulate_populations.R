@@ -71,11 +71,18 @@ K = 0.14
 pop <- sim_pop(iter = length(nsims), ages, years, Rec_age0, Z, Linf, K)
 
 ### EXTRACT N AT AGE MATRIX ####
-Nage <- map_df(pop, ~pluck(., "N0") |>
-                 tibble(age = ages),
+Nage <- map_df(pop, ~pluck(., "N") |>
+  #pop[[1]]$N |>
+  as_tibble() |>
+  mutate(age = ages) |>
+  pivot_longer(cols=all_of(years),
+               names_to = "year",
+               values_to = "Nage"),
                .id = "sim") |>
   janitor::clean_names() |>
-  mutate(sim = as.integer(sim))
+  rename(Nage = nage) |>
+  mutate(sim = as.integer(sim),
+         year = as.integer(year))
 
 
 ## SAVE THE DATA ####
