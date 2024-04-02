@@ -36,6 +36,7 @@ force_sim_logistic <- function(k = 2, x0 = 3, plot = FALSE, force_age = FALSE, a
       names(y) <- x # make named number
       #if (force_age){ #
         y[which(names(y) == as.character(age))] <- force_sel # find the instances where the named number is equal to the age provided by user to force the selectivity and replace its value with the force_sel value provided
+        if (plot) plot(x, y, type = "b")
         y # return
       } else { # if y has more than one column of selectivities
       final_cols <- dim(y)[2] # extract the number of columns in y that will be filled with selectivity values
@@ -44,12 +45,12 @@ force_sim_logistic <- function(k = 2, x0 = 3, plot = FALSE, force_age = FALSE, a
       #if (force_age){ # if force_age = TRUE
         y[x == age] <- force_sel # find the instances where the x value provided to the function is equal to the age provided by the user to force the selectivity and replace its value with the force_sel value provided
       y <- y[,seq(final_cols)] # only return the selectivities
+      if (plot) plot(x, y, type = "b")
       y
       }
-      if (plot) plot(x, y, type = "b")
       } else {
-      y
       if (plot) plot(x, y, type = "b")
+        y
       }
     }
 }
