@@ -43,12 +43,13 @@ force_sim_logistic <- function(k = 2, x0 = 3, plot = FALSE, force_age = FALSE, a
       y <- cbind(y, x) # add a column for ages
       #if (force_age){ # if force_age = TRUE
         y[x == age] <- force_sel # find the instances where the x value provided to the function is equal to the age provided by the user to force the selectivity and replace its value with the force_sel value provided
-      y[,seq(final_cols)] # only return the selectivities
-    }
+      y <- y[,seq(final_cols)] # only return the selectivities
+      }
+      if (plot) plot(x, y, type = "b")
       } else {
       y
+        if (plot) plot(x, y, type = "b")
       }
-    if (plot) plot(x, y, type = "b")
     }
 }
 
