@@ -31,7 +31,6 @@
 force_sim_logistic <- function(k = 2, x0 = 3, plot = FALSE, force_age = FALSE, age, force_sel = 0) {
   function(x = NULL) {
     y <- 1 / (1 + exp(-k * (x - x0)))
-    if (plot) plot(x, y, type = "b")
     if (force_age) { # if force_age = TRUE
       if (is.null(dim(y)) == TRUE){ # test if y lacks dimensions
       names(y) <- x # make named number
@@ -49,6 +48,7 @@ force_sim_logistic <- function(k = 2, x0 = 3, plot = FALSE, force_age = FALSE, a
       } else {
       y
       }
-  }
+    if (plot) plot(x, y, type = "b")
+    }
 }
 
