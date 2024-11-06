@@ -1,0 +1,126 @@
+---
+title: "Depth Comparison Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# Load required libraries
+library(dplyr)
+library(here)
+library(sf)
+library(ggplot2)
+library(tidyr)
+```
+
+```{r}
+# Define analysis directory and load data
+sseep.analysis <- "C:/Users/catalina.roman/Desktop/UMassD/sseep-analysis"
+
+complete <- readRDS(here(sseep.analysis, "data", "rds", "completed_bts_data.rds")) %>%
+  filter(EST_YEAR %in% c(2009:2016, 2018, 2019, 2021, 2022)) %>%
+  mutate(EXPCATCHWT = ifelse(is.na(EXPCATCHWT), 0, EXPCATCHWT))
+```
+
+```{r}
+# Filter data for specific species and required years
+sp_complete <- complete %>%
+  filter(SVSPP == 143, EST_YEAR %in% c(2009:2022)) %>%
+  mutate(EXPCATCHWT = ifelse(is.na(EXPCATCHWT), 0, EXPCATCHWT))
+
+# Select location data and rename columns
+data_locations <- sp_complete %>%
+  select(AVGDEPTH, DECDEG_BEGLON, DECDEG_BEGLAT) %>%
+  rename(longitude = DECDEG_BEGLON, latitude = DECDEG_BEGLAT, depth = AVGDEPTH)
+
+```
+
+```{r}
+# Load and process simulated data
+survdat_fixed <- readRDS(here("R", "scup", "data", "surv_dat_fixed.rds"))
+sim_locations <- survdat_fixed$setdet %>%
+  select(x, y, depth) %>%
+  mutate(x = x * 1000, y = y * 1000) # Convert from km to m
+
+# Convert to sf object and transform coordinates to WGS84
+utm_crs <- 32618  # UTM Zone 18N
+simulated_sf <- st_as_sf(sim_locations, coords = c("x", "y"), crs = utm_crs) %>%
+  st_transform(crs = 4326)
+
+# Extract coordinates and drop geometry
+simulated_locations <- simulated_sf %>%
+  mutate(longitude = st_coordinates(.)[,1], latitude = st_coordinates(.)[,2]) %>%
+  st_drop_geometry()
+
+```
+
+```{r}
+# Label data sources and combine
+data_locations <- data_locations %>% mutate(source = "observed") %>% drop_na()
+simulated_locations <- simulated_locations %>% mutate(source = "simulated")
+combined_data <- bind_rows(data_locations, simulated_locations)
+
+# Check structure of combined data
+str(combined_data)
+head(combined_data)
+
+```
+
+
+```{r}
+# Scatter plot to compare observed and simulated depths
+ggplot(combined_data, aes(x = depth, color = source)) +
+  geom_point(aes(y = depth), position = position_jitter(width = 0, height = 0.1), alpha = 0.5) +
+  labs(title = "Observed Depth vs Simulated Depth", x = "Depth (m)", y = "Depth (m)") +
+  scale_color_manual(values = c("red", "blue"), labels = c("Observed", "Simulated")) +
+  theme_minimal() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray")
+
+```
+
+
+```{r}
+# Summary statistics
+summary(data_locations$depth)
+summary(simulated_locations$depth)
+
+
+```
+
+
+
+```{r}
+# Histogram of depths
+ggplot(combined_data, aes(x = depth, fill = source)) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 20) +
+  labs(x = "Depth", y = "Frequency") +
+  theme_minimal()
+
+```
+
+
+
+```{r}
+# Box plot of depths
+ggplot(combined_data, aes(x = source, y = depth)) +
+  geom_boxplot() +
+  labs(x = "Data Source", y = "Depth") +
+  theme_minimal()
+
+
+```
+
+
+
+```{r}
+# Kolmogorov-Smirnov Test
+ks_test <- ks.test(data_locations$depth, simulated_locations$depth)
+print(ks_test)
+
+```
+
+```{r}
+# Wilcoxon Test
+wilcox_test <- wilcox.test(data_locations$depth, simulated_locations$depth)
+print(wilcox_test)
+
+```
