@@ -13,6 +13,7 @@
 library(SimSurvey)
 suppressPackageStartupMessages(library(tidyverse))
 library(here)
+library(plotly)
 source(here("R", "sim_pop_fn.R"))
 # random seed number for generating different populations but for reproducibility of simulation
 set.seed(131)
@@ -95,13 +96,51 @@ Nage <- map_df(pop, ~pluck(., "N") |>
          year = as.integer(year))
 
 
-plot_surface(pop, mat = "N")
+#Plot 1
+ggplot(Nage, aes(x = year, y = age, fill = Nage)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = "D", name = "Numbers at Age") + # Color scale
+  labs(title = "Numbers at Age",
+       x = "Year", y = "Age") +
+  facet_wrap(~sim, ncol = 2) + # Facet by simulation
+  theme_minimal(base_size = 14) +
+  theme(strip.text = element_text(face = "bold", size = 12),
+    legend.position = "bottom", legend.text = element_text(size = 10, angle = 45))
+
+
+#Plot 2 - recreates surface plot
+nage_data <- Nage  # Rename to avoid conflicts
+
+#Creates a surface plot for each simulation
+plots <- nage_data |>
+  group_by(sim) |>
+  group_split() |>
+  lapply(function(nage_data) {
+    sim_id <- unique(nage_data$sim) # Get simulation ID
+    # Reshape data to a grid format
+    surface_data <- nage_data |>
+      select(year, age, Nage) |> 
+      pivot_wider(names_from = year, values_from = Nage, names_prefix = "Year_") |>
+      column_to_rownames(var = "age")
+   z_matrix <- as.matrix(surface_data)  # Convert to matrix for surface plot
+     plot_ly(
+      x = unique(nage_data$year), y = unique(nage_data$age), z = z_matrix,    
+      type = "surface", colorscale = "Viridis") |>
+      layout(
+        title = paste("Simulation", sim_id),
+        scene = list(
+          xaxis = list(title = "Year"),
+          yaxis = list(title = "Age"),
+          zaxis = list(title = "Numbers at Age")))
+  }
+  )
+
+# Display a specific plot (e.g., first simulation)
+plots[[1]]
+plots[[2]]
+
+
 ## SAVE THE DATA ####
 saveRDS(pop, here(pop.dat, str_c(species, length(nsims), "pop.rds", sep = "_")))
 saveRDS(Nage, here(Nage.dat, str_c(species, length(nsims), "Nage.rds", sep = "_")))
-
-
-
-
-
 
