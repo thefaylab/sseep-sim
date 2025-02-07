@@ -1,5 +1,5 @@
 ### created: 01/18/2024
-### updated: 02/05/2024
+### updated: 02/07/2025
 
 # 04b - PRECLUDE SURVEY FROM WIND ENERGY AREAS ####
 
@@ -39,20 +39,30 @@ nsurveys <- 25
 ages <- 0:7
 
 ### years projected
-years <- 1:5
+years <- 1:15
 
 
 
 ### LOAD DATA ####
 # simulated status quo survey data created here("R", "04a_simulate_status-quo-survey.R")
 survdat_sq <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat.rds", sep = "_")))
-survdat_sq_nw <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat_nw.rds", sep = "_")))
+#survdat_sq_nw <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat_nw.rds", sep = "_")))
 
 ## PRECLUDE SURVEY ####
 # remove tows/sets that were sampled in cells indexed as a wind cell to represent the preclusion of the survey due to offshore wind energy areas
 # `AREA_CODE == 2` represents outside areas
 survdat_precl <- map(survdat_sq, ~filter(.$setdet, AREA_CODE == 2))
-survdat_precl_nw <- map(survdat_sq_nw, ~filter(.$setdet, AREA_CODE == 2))
+
+survdat_precl <- map(survdat_sq, ~filter(.$setdet, !(year >= 6 & AREA_CODE == 1)))
+print(table(survdat_precl[[1]]$year, survdat_precl[[1]]$AREA_CODE))  # Check that years 6-15 only have AREA_CODE 2
+
+# Check if AREA_CODE == 1 is removed only for years 6-15 
+map(survdat_precl, ~print(table(.x$year, .x$AREA_CODE)))
+
+# Check if AREA_CODE == 1 is removed for years 6-15 across all simulations
+map(survdat_precl, ~table(.x$sim, .x$AREA_CODE, .x$year))
+
+#survdat_precl_nw <- map(survdat_sq_nw, ~filter(.$setdet, AREA_CODE == 2))
 
 
 ### to do: add code to filter survdat_sq$samps for length and age data calculations for samples only taken outside of wind energy areas
@@ -60,5 +70,5 @@ survdat_precl_nw <- map(survdat_sq_nw, ~filter(.$setdet, AREA_CODE == 2))
 
 ## SAVE THE DATA ####
 saveRDS(survdat_precl, here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "precl-surv-dat.rds", sep = "_")))
-saveRDS(survdat_precl_nw, here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "precl-surv-dat_nw.rds", sep = "_")))
+#saveRDS(survdat_precl_nw, here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "precl-surv-dat_nw.rds", sep = "_")))
 
