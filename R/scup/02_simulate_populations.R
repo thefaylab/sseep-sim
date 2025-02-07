@@ -1,5 +1,5 @@
 ### created: 01/18/2024
-### updated: 02/06/2024
+### updated: 02/07/2025
 
 # 02 - SIMULATE POPULATIONS ####
 
@@ -45,37 +45,30 @@ seed <- sample.int(1e6, length(nsims))
 ages <- 0:7
 
 # number of years of a given population
-years <- 1:5
+years <- 1:15
 
-# Recruitment at age 0 for the most recent 5 years, 2015-2019; numbers were reported in millions in the MTA report.
-Rec_age0 <- c(107,142,75,61,112)*1e6
+# Base recruitment value (constant recruitment assumption)
+R_base <- 100e6  # 100 million recruits
 
-#mean(Rec_age0)
-#sd(Rec_age0)
+# Process variability for recruitment
+sigmaR <- 0.427  # Recruitment variability, estimated in SR-scup.R
 
-# fishing mortality at MSY (FMSY=F35%) - the target fishing mortality
-# Table 2 - the updated 2021 MTA threshold fishing mortality reference point proxy.
-F <- matrix(c(0.011, 0.048,	0.082, 0.079,	0.069, 0.066,	0.042, 0.015,
-              0.007, 0.03,	0.063, 0.079,	0.073, 0.071,	0.043, 0.014,
-              0.006, 0.028,	0.062, 0.086,	0.082, 0.08,	0.048, 0.016,
-              0.008, 0.034,	0.082, 0.12,	0.116, 0.114,	0.069, 0.022,
-              0.009, 0.039,	0.09,	 0.127,	0.122, 0.119,	0.072, 0.023),
-            nrow = 8, ncol = 5, byrow = FALSE, dimnames = list(age = 0:7, year = 1:5))
-F
+# Generate recruitment values with variability
+Rec_age0 <- R_base * exp(rnorm(length(years), mean = 0, sd = sigmaR))
+
+# Fixed fishing mortality
+F_fixed <- c(0.01, 0.01, 0.01, 0.1, 0.1, 0.1, 0.05, 0.05)  # F for ages 0-7
+F <- matrix(F_fixed, nrow = length(ages), ncol = length(years))
 
 # natural mortality
 M <- 0.2
 
 #total mortality
 Z <- F + M
-#mean(Z)
-#sd(Z)
-#log(sd(Z))
 
 # Von Bertalanffy growth parameters for both male and female
 Linf = 46.6
 K = 0.15
-
 
 
 ## SIMULATE ABUNDANCE ####
@@ -83,7 +76,7 @@ pop <- sim_pop(iter = length(nsims), ages, years, Rec_age0, Z, Linf, K)
 
 ### EXTRACT N AT AGE MATRIX ####
 Nage <- map_df(pop, ~pluck(., "N") |>
-  #pop[[1]]$N |>
+ # pop[[1]]$N |>
   as_tibble() |>
   mutate(age = ages) |>
   pivot_longer(cols=all_of(years),
@@ -96,6 +89,10 @@ Nage <- map_df(pop, ~pluck(., "N") |>
          year = as.integer(year))
 
 
+#plot_surface(pop[1], mat = "N")
+#
+
+
 #Plot 1
 ggplot(Nage, aes(x = year, y = age, fill = Nage)) +
   geom_tile() +
@@ -105,7 +102,7 @@ ggplot(Nage, aes(x = year, y = age, fill = Nage)) +
   facet_wrap(~sim, ncol = 2) + # Facet by simulation
   theme_minimal(base_size = 14) +
   theme(strip.text = element_text(face = "bold", size = 12),
-    legend.position = "bottom", legend.text = element_text(size = 10, angle = 45))
+        legend.position = "bottom", legend.text = element_text(size = 10, angle = 45))
 
 
 #Plot 2 - recreates surface plot
@@ -119,12 +116,12 @@ plots <- nage_data |>
     sim_id <- unique(nage_data$sim) # Get simulation ID
     # Reshape data to a grid format
     surface_data <- nage_data |>
-      select(year, age, Nage) |> 
+      select(year, age, Nage) |>
       pivot_wider(names_from = year, values_from = Nage, names_prefix = "Year_") |>
       column_to_rownames(var = "age")
-   z_matrix <- as.matrix(surface_data)  # Convert to matrix for surface plot
-     plot_ly(
-      x = unique(nage_data$year), y = unique(nage_data$age), z = z_matrix,    
+    z_matrix <- as.matrix(surface_data)  # Convert to matrix for surface plot
+    plot_ly(
+      x = unique(nage_data$year), y = unique(nage_data$age), z = z_matrix,
       type = "surface", colorscale = "Viridis") |>
       layout(
         title = paste("Simulation", sim_id),
@@ -143,4 +140,3 @@ plots[[2]]
 ## SAVE THE DATA ####
 saveRDS(pop, here(pop.dat, str_c(species, length(nsims), "pop.rds", sep = "_")))
 saveRDS(Nage, here(Nage.dat, str_c(species, length(nsims), "Nage.rds", sep = "_")))
-
