@@ -1,5 +1,5 @@
 ### created: 01/22/2024
-### updated: 02/05/2024
+### updated: 02/07/2024
 
 # 06c - CALCULATE ERROR IN TREND OVER TIME ####
 
@@ -37,7 +37,7 @@ season <- "fall"
 ages <- 0:7
 
 ### years projected
-years <- 1:5
+years <- 1:15
 
 ### number of simulations
 nsims <- 1:2
@@ -120,7 +120,7 @@ ggplot() +
 ggsave(str_c(species, season, "lm-ests-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
 
 
-ggplot(slope_errors) +
+e1<-ggplot(slope_errors) +
   geom_boxplot(aes(x = as.factor(scenario), y = err, color = fct_inorder(scenario))) +
   # ylim(0, NA) +
   labs(x = "Year", y = "Linear regression slope error", title = str_c("Distribution of errors of linear regression slope estimates for", season, species, "survey", sep = " ")) +
@@ -128,7 +128,7 @@ ggplot(slope_errors) +
 
 ggsave(str_c(species, season, "lm-errors-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
 
-ggplot(slope_errors) +
+e2<-ggplot(slope_errors) +
   geom_boxplot(aes(x = as.factor(scenario), y = rel_err, color = fct_inorder(scenario))) +
   # ylim(0, NA) +
   labs(x = "Year", y = "Linear regression slope relative errors", title = str_c("Distribution of relative errors of linear regression slope estimates for", season, species, "survey", sep = " ")) +
@@ -136,11 +136,15 @@ ggplot(slope_errors) +
 
 ggsave(str_c(species, season, "lm-rel-errors-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
 
-ggplot(slope_errors) +
+e3<-ggplot(slope_errors) +
   geom_boxplot(aes(x = as.factor(scenario), y = abs_rel_err, color = fct_inorder(scenario))) +
   # ylim(0, NA) +
   labs(x = "Year", y = "Linear regression slope absolute relative errors", title = str_c("Distribution of absolute relative errors of linear regression slope estimates for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
 
 ggsave(str_c(species, season, "lm-abs-rel-errors-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 9, height = 6)
+
+
+library(gridExtra)
+grid.arrange(e1, e2, e3, ncol=1)
 
