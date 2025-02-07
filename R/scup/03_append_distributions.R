@@ -37,7 +37,7 @@ season <- "fall"
 ages <- 0:7
 
 ### years projected
-years <- 1:5
+years <- 1:15
 
 ### number of simulations
 nsims <- 1:2
@@ -213,6 +213,18 @@ pop <- map2(pop, dist_list, ~append(.x, .y)) |>
 
 # pop_nw <- map2(pop, dist_list_nw, ~append(.x, .y)) |>
 #   map(~list(pop = .))
+
+
+dist_list[[1]]$sp_N |>
+  ggplot() +
+  geom_tile(aes(x,y, fill = N), width = 10, height = 10) +
+  scale_fill_viridis_c() + facet_wrap(~age)
+
+
+dist_list[[2]]$sp_N |>
+  ggplot() +
+  geom_tile(aes(x,y, fill = N), width = 10, height = 10) +
+  scale_fill_viridis_c() + facet_wrap(~age)
 
 
 ## SAVE THE DATA ####
