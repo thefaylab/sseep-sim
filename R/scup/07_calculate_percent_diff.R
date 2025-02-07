@@ -1,5 +1,5 @@
 ### created: 02/05/2024
-### updated: 02/06/2024
+### updated: 02/07/2025
 
 # 07 - CALCULATE PERCENT DIFFERENCE FOR SCENARIOS ####
 
@@ -37,7 +37,7 @@ season <- "fall"
 ages <- 0:7
 
 ### years projected
-years <- 1:5
+years <- 1:15
 
 ### number of simulations
 nsims <- 1:2
