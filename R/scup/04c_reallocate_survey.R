@@ -1,5 +1,5 @@
 ### created: 01/18/2024
-### updated: 02/05/2024
+### updated: 02/07/2025
 
 # 04c - SIMULATE REALLOCATED SURVEY ####
 
@@ -41,7 +41,7 @@ season <- "fall"
 ages <- 0:7
 
 ### years projected
-years <- 1:5
+years <- 1:15
 
 ### number of simulations
 nsims <- 1:2
@@ -92,11 +92,17 @@ survdat_precl <- readRDS(here(survdat, str_c(species, season, length(nsims), "si
 
 ## Identify tows ####
 #tows occuring inside wind areas | AREA CODE = 1
-wind_tows <- map(survdat_sq, ~filter(.$setdet, AREA_CODE == 1))
+#wind_tows <- map(survdat_sq, ~filter(.$setdet, AREA_CODE == 1))
+wind_tows <- map(survdat_sq, ~filter(.$setdet, AREA_CODE == 1, year >= 6))
 
-wind_cells <- map(wind_tows, ~group_by(.,sim,year,strat) |>
-                    distinct(cell)
-)
+
+# wind_cells <- map(wind_tows, ~group_by(.,sim,year,strat) |>
+#                     distinct(cell))
+
+wind_cells <- map(wind_tows, ~group_by(., sim, year, strat) |>
+                    filter(year >= 6) |> # Apply change only for years 6-15
+                    distinct(cell))
+
 
 wind_strat <- map(wind_cells, ~unique(.$strat))
 
@@ -112,9 +118,16 @@ out_wa_grid <- map2(grids, wind_strat, ~filter(.x, strat %in% .y, AREA_CODE == 2
 out_strat <- map(out_wa_grid, ~unique(.$strat))
 
 # count the number of wind tows in each year and strata that need reallocating
+# wind_summ <- map(wind_tows, ~group_by(.x, sim, year, strat) |>
+#                    nest() |>
+#                    mutate(count = map(data, ~length(.$set))) |> rename(wind_tows = data))
+
 wind_summ <- map(wind_tows, ~group_by(.x, sim, year, strat) |>
+                   filter(year >= 6) |> # Apply only for years 6-15
                    nest() |>
-                   mutate(count = map(data, ~length(.$set))) |> rename(wind_tows = data))
+                   mutate(count = map(data, ~length(.$set))) |> 
+                   rename(wind_tows = data))
+
 
 ## Generate new locations ####
 # join the count data with the grid with remaining cells outside wind areas in order to sample the grid
@@ -127,17 +140,38 @@ join_data2 <- map2(join_data, out_strat, ~filter(.x, strat %in% .y))
 map2(join_data, join_data2, ~anti_join(.x, .y, by=c("sim", "strat", "year"))) |> head(2)
 
 # sample new locations and create a set dataframe to supply to custom_sets argument
+# new_locations <- map(join_data2,
+#                      ~mutate(., new = purrr::map2(data, count,
+#                                                 ~slice_sample(.x, n=.y, replace=TRUE)),
+#                              tow_info = purrr::map(wind_tows,
+#                                                    ~select(., !c(x,y,cell,depth,AREA_CODE, n, n_aged, n_measured, N))),
+#                              new_set_loc = purrr::map2(new, tow_info, ~bind_cols(.x, .y))) |>
+#                        dplyr::select(c(sim, year, strat, new_set_loc)) |>
+#                        tidyr::unnest(cols=new_set_loc) |>
+#                        #select(!(division)) |>
+#                        dplyr::relocate(set, .after = last_col()) |>
+#                        dplyr::select(!c(AREA)))
+
+
 new_locations <- map(join_data2,
                      ~mutate(., new = purrr::map2(data, count,
-                                                ~slice_sample(.x, n=.y, replace=TRUE)),
+                                                  ~slice_sample(.x |> filter(year >= 6), n=.y, replace=TRUE)), # Apply change only for years 6-15
                              tow_info = purrr::map(wind_tows,
-                                                   ~select(., !c(x,y,cell,depth,AREA_CODE, n, n_aged, n_measured, N))),
+                                                   ~select(., !c(x, y, cell, depth, AREA_CODE, n, n_aged, n_measured, N))),
                              new_set_loc = purrr::map2(new, tow_info, ~bind_cols(.x, .y))) |>
                        dplyr::select(c(sim, year, strat, new_set_loc)) |>
                        tidyr::unnest(cols=new_set_loc) |>
-                       #select(!(division)) |>
-                       dplyr::relocate(set, .after = last_col()) |>
-                       dplyr::select(!c(AREA)))
+                       dplyr::relocate(set, .after = last_col())) #|>
+                     #  dplyr::select(!c(AREA)))
+
+
+#Check
+map(new_locations, ~unique(.x$year)) #should contain only years 6 to 15
+map(new_locations, ~count(.x, year)) #ensure that only years 6-15 contain new data. If years 1-5 are missing from the output, it confirms the fix
+map(new_locations, ~filter(.x, year < 6)) #To double-check that years 1-5 remain unchanged, an empty list confirms that no changes were made to years 1-5
+#To confirm that only years 6-15 changed, compare the old and new tow allocations
+map2(join_data2, new_locations, ~full_join(count(.x, year), count(.y, year), by = "year", suffix = c("_before", "_after")))
+
 
 # less tows bc could not reallocate 0320 tows
 
@@ -158,7 +192,21 @@ survdat_new_locs <- map2(pop, new_locations, ~sim_survey(.x$pop,
 survdat_reall <- map2(survdat_precl, survdat_new_locs, ~bind_rows(.x, .y$setdet))
 
 
+map(survdat_reall, ~unique(.x$year))
+map(survdat_reall, ~table(.x$year, .x$AREA_CODE))
+map(survdat_reall, ~table(.x$sim, .x$AREA_CODE, .x$year))
+
 ### to do: add code to bind survdat_new_locs$samps for length and age data to precluded survey for survey data product comps calculations
+
+
+
+library(ggplot2)
+
+map(survdat_reall, ~ggplot(.x, aes(x = as.factor(year), fill = as.factor(AREA_CODE))) +
+      geom_bar() +
+      theme_minimal() +
+      labs(title = "Survey Tow Distribution After Reallocation", 
+           x = "Year", y = "Number of Tows", fill = "AREA_CODE"))
 
 
 ## SAVE THE DATA ####
@@ -166,5 +214,3 @@ saveRDS(survdat_new_locs, here(survdat, str_c(species, season, length(nsims), "s
 saveRDS(survdat_reall, here(survdat, str_c(species, season, length(nsims), "sims", "reall", nsurveys, "survdat.rds", sep = "_")))
 # saveRDS(survdat_new_locs, here(survdat, str_c(species, season, length(nsims), "sims", "locs", nsurveys, "survdat_nw.rds", sep = "_")))
 # saveRDS(survdat_reall, here(survdat, str_c(species, season, length(nsims), "sims", "reall", nsurveys, "survdat_nw.rds", sep = "_")))
-
-
