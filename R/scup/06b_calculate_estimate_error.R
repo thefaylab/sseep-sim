@@ -1,5 +1,5 @@
 ### created: 01/18/2024
-### updated:
+### updated: 02/07/2025
 
 # 06b - CALCULATE ESTIMATION ERROR ####
 
@@ -36,7 +36,7 @@ season <- "fall"
 ages <- 0:7
 
 ### years projected
-years <- 1:5
+years <- 1:15
 
 ### number of simulations
 nsims <- 1:2
