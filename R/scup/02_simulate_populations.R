@@ -48,8 +48,20 @@ ages <- 0:7
 years <- 1:15
 
 # Average Rec from benchmark SA
-Rec <- mean(c(107,142,75,61,112)*1e6)
-Rec_age0 <- rep(Rec, 15) * 1e6
+Rec <- c(107,142,75,61,112)*1e6
+R_mean <- mean(Rec)
+
+# Calculate recruitment CV
+R_sd <- sd(Rec)  # Standard deviation of recruitment
+R_cv <- R_sd / R_mean  # Coefficient of Variation
+
+# Derive sigma_R for log-normal variability
+sigma_R <- sqrt(log(1 + R_cv^2))  # Conversion from CV to log-scale
+
+set.seed(42)  # For reproducibility
+
+# Simulate recruitment with log-normal variability
+Rec_age0 <- R_mean * exp(rnorm(years, mean = 0, sd = sigma_R))
 
 # Fixed fishing mortality
 F_fixed <- c(0.01, 0.01, 0.01, 0.1, 0.1, 0.1, 0.05, 0.05)  # F for ages 0-7
@@ -86,10 +98,6 @@ Nage <- map_df(pop, ~pluck(., "N") |>
   rename(Nage = nage) |>
   mutate(sim = as.integer(sim),
          year = as.integer(year))
-
-
-#plot_surface(pop[1], mat = "N")
-#
 
 
 #Plot 1
