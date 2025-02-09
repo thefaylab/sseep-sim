@@ -1,5 +1,5 @@
 ### created: 01/18/2024
-### updated: 02/07/2025
+### updated: 02/09/2025
 
 # 02 - SIMULATE POPULATIONS ####
 
@@ -31,7 +31,7 @@ Nage.dat <- here("data", "rds", "Nages")
 ### name of species to be simulated
 species <- "scup"
 
-### number of simulations
+### number of simulations of the population
 nsims <- 1:2
 
 # generate a set random numbers to set seed with each iteration for reproducibility
@@ -47,17 +47,13 @@ ages <- 0:7
 # number of years of a given population
 years <- 1:15
 
-# Base recruitment value (constant recruitment assumption)
-R_base <- 100e6  # 100 million recruits
-
-# Process variability for recruitment
-sigmaR <- 0.427  # Recruitment variability, estimated in SR-scup.R
-
-# Generate recruitment values with variability
-Rec_age0 <- R_base * exp(rnorm(length(years), mean = 0, sd = sigmaR))
+# Average Rec from benchmark SA
+Rec <- mean(c(107,142,75,61,112)*1e6)
+Rec_age0 <- rep(Rec, 15) * 1e6
 
 # Fixed fishing mortality
 F_fixed <- c(0.01, 0.01, 0.01, 0.1, 0.1, 0.1, 0.05, 0.05)  # F for ages 0-7
+# Constant F across years
 F <- matrix(F_fixed, nrow = length(ages), ncol = length(years))
 
 # natural mortality
@@ -65,6 +61,9 @@ M <- 0.2
 
 #total mortality
 Z <- F + M
+#mean(Z)
+#sd(Z)
+#log(sd(Z))
 
 # Von Bertalanffy growth parameters for both male and female
 Linf = 46.6
