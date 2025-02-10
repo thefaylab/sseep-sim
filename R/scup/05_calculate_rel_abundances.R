@@ -1,16 +1,13 @@
 ### created: 01/18/2024
-### updated: 02/07/2025
+### updated: 02/07/2024
 
-# 04c - SIMULATE REALLOCATED SURVEY ####
+# 05 - CALCULATE RELATIVE ABUNDANCES ####
 
 
 ## Objective ####
-# identify and calculate the number of sets that occurred in a wind area and the strata in which those sets and wind areas occurred
-# remove wind cells from the grid and sample the remaining cells in the same strata that precluded wind tows occurred and for the same number of tows that were precluded
-# set these new sampled cells as new locations and simulate a status quo NMFS bottom trawl survey.
-# bind the resulting tow level data to the dataset where wind tows and catch rates were removed
+# For a given species, distribution, and survey, calculate the relative true abundance and the relative abundance index.
 
-# Outputs: locations of reallocated tows in strata where wind tows were precluded, and a full survey with tow level data for each replicate of a simulated population and abundance.
+# Outputs: Relative true abundance and abundance indices for each year and simulation of the projection standardized to the average abundance or abundance index over time
 
 ### PACKAGES ####
 library(sdmTMB)
@@ -18,18 +15,17 @@ library(SimSurvey)
 suppressPackageStartupMessages(library(tidyverse))
 library(data.table)
 library(here)
-library(tidyverse)
-library(tidyr)
-library(purrr)
-library(dplyr)
-# source(here("R", "sim_pop_fn.R"))
-set.seed(131)
+source(here("R", "sim_stratmean_fn.R"))
+theme_set(theme_bw())
+
 
 ### DATA SET UP ####
 # data locations
-sdmtmb.dir <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis/sdmtmb"
+sseep.analysis <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis"
 dist.dat <- here("data", "rds", "dists")
 survdat <- here("data", "rds", "survdat")
+surv.prods <- here("data", "rds", "surv-prods")
+plots <- here("outputs", "plots")
 
 ### name of species to be simulated
 species <- "scup"
@@ -37,177 +33,207 @@ species <- "scup"
 ### season to be simulated
 season <- "fall"
 
-### ages simulated
-ages <- 0:7
-
-### years projected
-years <- 1:15
-
 ### number of simulations
 nsims <- 1:2
 
 ### number of simulations
 nsurveys <- 25
 
-### trawl dimensions
-trawl_dim <- c(2.7, 0.014)
+### ages simulated
+ages <- 0:7
 
-### catchability from the most recent stock assessment
-source(("R/selectivity_fns.R"))
-
-#catch_q <- sim_logistic(k = 2, x0 = 2.5) #older sel
-catch_q <- force_sim_logistic(k = -0.66, x0 = -1.14, plot = TRUE, force_age = TRUE, age = 0, force_sel = 1)
-
-### tow density allocation
-set_den <- 0.001
-
-### minimum sets to allocate per strata
-min_sets <- 3
-
-### age sampling method
-age_sampling <- "stratified"
-
-### spatial scale of age sampling
-age_space_group <- "set"  # age sampling with with tow and year
-
-### allow resampling of grid cells
-resample_cells <- TRUE
+### years projected
+years <- 1:15
 
 
 ### LOAD DATA ####
 # simulated abundance and distributions created here("R", "03_append_distributions.R")
-#pop <- readRDS(here(dist.dat, str_c(species, season, "50abund-dist.rds", sep = "_")))
 pop <- readRDS(here(dist.dat, str_c(species, season, length(nsims), "abund-dist.rds", sep = "_")))
+# pop_nw, here(dist.dat, str_c(species, season, length(nsims), "nowind-abund-dist.rds", sep = "_")))
 
-# pop_nw <- readRDS(here(dist.dat, str_c(species, season, length(nsims), "nowind-abund-dist.rds", sep = "_"))) # with wind effect turned off
+# filtered sdmTMB distribution predictions created here("R", "03_append_distributions.R"); to be used to filter sampling spatial frame
+dist <- readRDS(here(dist.dat, str_c(species, season, length(nsims), "sdm-dist-only.rds", sep = "_")))
+# dist_nowind <- here(dist.dat, str_c(species, season, length(nsims), "sdm-dist_nowind-only.rds", sep = "_")))
 
 # simulated status quo survey data created here("R", "04a_simulate_status-quo-survey.R")
 survdat_sq <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat.rds", sep = "_")))
-# survdat_sq_nw <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat_nw.rds", sep = "_"))) # where wind effect is turned off
+# survdat_sq_nw, here(survdat, str_c(species, season, length(nsims), "sims", "sq-surv-dat_nw.rds", sep = "_")))
 
-# simulated status quo survey data created here("R", "04b_preclude_survey.R")
-survdat_precl <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "precl-surv-dat.rds", sep = "_")))
-# survdat_precl_nw <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "precl-surv-dat_nw.rds", sep = "_")))
- # where wind effect is turned off
+# simulated precluded survey data created here("R", "04b_simulate_status-quo-survey.R")
+survdat_precl <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims",nsurveys,  "precl-surv-dat.rds", sep = "_")))
+# survdat_precl_nw, here(survdat, str_c(species, season, length(nsims), nsurveys, "precl-surv-dat_nw.rds", sep = "_")))
 
-## Identify tows ####
-#tows occuring inside wind areas | AREA CODE = 1
-#wind_tows <- map(survdat_sq, ~filter(.$setdet, AREA_CODE == 1))
-wind_tows <- map(survdat_sq, ~filter(.$setdet, AREA_CODE == 1, year >= 6))
+# simulated reallocated survey data created here("R", "04c_simulate_status-quo-survey.R")
+survdat_reall <- readRDS(here(survdat, str_c(species, season, length(nsims), "sims", "reall", nsurveys, "survdat.rds", sep = "_")))
+# survdat_reall_nw, here(survdat, str_c(species, season, length(nsims), "sims", "reall", nsurveys, "survdat_nw.rds", sep = "_")))
 
 
-# wind_cells <- map(wind_tows, ~group_by(.,sim,year,strat) |>
-#                     distinct(cell))
-
-wind_cells <- map(wind_tows, ~group_by(., sim, year, strat) |>
-                    filter(year >= 6) |> # Apply change only for years 6-15
-                    distinct(cell))
 
 
-wind_strat <- map(wind_cells, ~unique(.$strat))
+# area weights for each strata
+strata_wts <- readRDS(here(sseep.analysis, "data", "rds", "active_strata_wts.rds")) |>
+  rename(strat = STRATUM)
+
+# find the total survey area
+survey_area <- as.integer(sum(strata_wts$Area_SqNm))
 
 
-## Filter grid ####
-# extract grids
-grids <- map(survdat_sq, ~pluck(., "grid_xy"))
+## True Abundance ####
+# calculate the relative true abundance from the simulated population and distribution
+trueN <- map(pop, ~as_tibble(.$pop$N) |>
+                mutate(age = ages) |>
+                pivot_longer(cols = all_of(years),
+                             names_to = "year",
+                             values_to = "N") |>
+                summarise(N = sum(N), .by = "year") |> # calculate the sum of N across ages
+                mutate(rel_N = N/mean(N), # standardize the annual population by the average population size over the projection
+                       year = as.integer(year),
+                       scenario = "True")
+              ) |>
+  map_dfr(~pluck(.), .id = "sim")
 
-# filter grids for strata that have wind but cells that are outside wind areas
-out_wa_grid <- map2(grids, wind_strat, ~filter(.x, strat %in% .y, AREA_CODE == 2) |> group_by(strat) |> nest())
-
-#extract unique strata that have wind overlaps
-out_strat <- map(out_wa_grid, ~unique(.$strat))
-
-# count the number of wind tows in each year and strata that need reallocating
-# wind_summ <- map(wind_tows, ~group_by(.x, sim, year, strat) |>
-#                    nest() |>
-#                    mutate(count = map(data, ~length(.$set))) |> rename(wind_tows = data))
-
-wind_summ <- map(wind_tows, ~group_by(.x, sim, year, strat) |>
-                   filter(year >= 6) |> # Apply only for years 6-15
-                   nest() |>
-                   mutate(count = map(data, ~length(.$set))) |> 
-                   rename(wind_tows = data))
-
-
-## Generate new locations ####
-# join the count data with the grid with remaining cells outside wind areas in order to sample the grid
-join_data <- map2(wind_summ, out_wa_grid, ~left_join(.x, .y, by="strat"))
-
-#filter out the nulls (strata where no cells remain outside of wind areas)
-join_data2 <- map2(join_data, out_strat, ~filter(.x, strat %in% .y))
-
-# check that only nulls were removed
-map2(join_data, join_data2, ~anti_join(.x, .y, by=c("sim", "strat", "year"))) |> head(2)
-
-# sample new locations and create a set dataframe to supply to custom_sets argument
-# new_locations <- map(join_data2,
-#                      ~mutate(., new = purrr::map2(data, count,
-#                                                 ~slice_sample(.x, n=.y, replace=TRUE)),
-#                              tow_info = purrr::map(wind_tows,
-#                                                    ~select(., !c(x,y,cell,depth,AREA_CODE, n, n_aged, n_measured, N))),
-#                              new_set_loc = purrr::map2(new, tow_info, ~bind_cols(.x, .y))) |>
-#                        dplyr::select(c(sim, year, strat, new_set_loc)) |>
-#                        tidyr::unnest(cols=new_set_loc) |>
-#                        #select(!(division)) |>
-#                        dplyr::relocate(set, .after = last_col()) |>
-#                        dplyr::select(!c(AREA)))
+# calculate the median relative abundance value and the upper and lower confidence intervals across simulations
+# true_med <- trueN |>
+#   group_by(year, scenario) |>
+#   summarise(med = median(rel_N),
+#             lower = quantile(rel_N, 0.025),
+#             upper = quantile(rel_N, 0.975)) |>
+#   mutate(type = "Relative True Abundance")
 
 
-new_locations <- map(join_data2,
-                     ~mutate(., new = purrr::map2(data, count,
-                                                  ~slice_sample(.x |> filter(year >= 6), n=.y, replace=TRUE)), # Apply change only for years 6-15
-                             tow_info = purrr::map(wind_tows,
-                                                   ~select(., !c(x, y, cell, depth, AREA_CODE, n, n_aged, n_measured, N))),
-                             new_set_loc = purrr::map2(new, tow_info, ~bind_cols(.x, .y))) |>
-                       dplyr::select(c(sim, year, strat, new_set_loc)) |>
-                       tidyr::unnest(cols=new_set_loc) |>
-                       dplyr::relocate(set, .after = last_col())) #|>
-                     #  dplyr::select(!c(AREA)))
+
+## Abundance Index ####
+# calculate the abundance index and relative abundance index for each of the scenarios
+
+# extract the strata that were used to predict spatial distributions in sdmTMB
+strat <- map(dist, ~unique(.$strat))
+
+### Status Quo ####
+# ihat_sq <- map(survdat_sq, ~as_tibble(.$setdet) |> filter(strat %in% strat) |> sim_stratmean(strata_wts = strata_wts, survey_area = survey_area) |>
+#               mutate(rel_ihat = stratmu/mean(stratmu),
+#                      scenario = "Status Quo")) |>
+#   map_dfr(~pluck(.), .id = "sim")
+
+ihat_sq1 <- survdat_sq[[1]]$setdet |> as_tibble() |>
+  filter(strat %in% strat) |>
+  group_by(sim, year, strat) |>
+  summarise(towct = length(unique(set)),
+            mu = sum(n)/towct,
+            var = ifelse(towct == 1, 0,
+                         sum((n - mu)^2)/(towct - 1))) |>
+  left_join(strata_wts, by = "strat") |>
+  mutate(wt_mu = Area_SqNm * mu,
+         wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm))) |>
+  ungroup() |>
+  group_by(sim, year) |>
+  summarise(stratmu = (sum(wt_mu)) / survey_area, # part two of the stratified mean formula
+            stratvar = sum(wt_var),
+            cv = sqrt(stratvar)/stratmu) |>
+  mutate(rel_ihat = stratmu/mean(stratmu),
+         scenario = "Status Quo")
 
 
-#Check
-map(new_locations, ~unique(.x$year)) #should contain only years 6 to 15
-map(new_locations, ~count(.x, year)) #ensure that only years 6-15 contain new data. If years 1-5 are missing from the output, it confirms the fix
-map(new_locations, ~filter(.x, year < 6)) #To double-check that years 1-5 remain unchanged, an empty list confirms that no changes were made to years 1-5
-#To confirm that only years 6-15 changed, compare the old and new tow allocations
-map2(join_data2, new_locations, ~full_join(count(.x, year), count(.y, year), by = "year", suffix = c("_before", "_after")))
+
+### Precluded Survey ####
+# ihat_precl <- map(survdat_precl, ~as_tibble(.) |> filter(strat %in% strat) |> sim_stratmean(strata_wts = strata_wts, survey_area = survey_area) |>
+#                  mutate(rel_ihat = stratmu/mean(stratmu),
+#                         scenario = "Preclusion")) |>
+#   map_dfr(~pluck(.), .id = "sim")
+
+ihat_precl1 <- survdat_precl[[1]] |> as_tibble() |>
+  filter(strat %in% strat) |>
+  group_by(sim, year, strat) |>
+  summarise(towct = length(unique(set)),
+            mu = sum(n)/towct,
+            var = ifelse(towct == 1, 0,
+                         sum((n - mu)^2)/(towct - 1))) |>
+  left_join(strata_wts, by = "strat") |>
+  mutate(wt_mu = Area_SqNm * mu,
+         wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm))) |>
+  ungroup() |>
+  group_by(sim, year) |>
+  summarise(stratmu = (sum(wt_mu)) / survey_area, # part two of the stratified mean formula
+            stratvar = sum(wt_var),
+            cv = sqrt(stratvar)/stratmu) |>
+  mutate(rel_ihat = stratmu/mean(stratmu),
+         scenario = "Preclusion")
+
+### Reallocated Survey ####
+# ihat_reall <- map(survdat_reall, ~as_tibble(.x) |> filter(strat %in% strat) |> sim_stratmean(strata_wts = strata_wts, survey_area = survey_area) |>
+#                  mutate(rel_ihat = stratmu/mean(stratmu),
+#                         scenario = "Reallocation")) |>
+#   map_dfr(~pluck(.), .id = "sim")
+#
 
 
-# less tows bc could not reallocate 0320 tows
+ihat_reall1 <- survdat_reall[[1]] |> as_tibble() |>
+  filter(strat %in% strat) |>
+  group_by(sim, year, strat) |>
+  summarise(towct = length(unique(set)),
+            mu = sum(n)/towct,
+            var = ifelse(towct == 1, 0,
+                         sum((n - mu)^2)/(towct - 1))) |>
+  left_join(strata_wts, by = "strat") |>
+  mutate(wt_mu = Area_SqNm * mu,
+         wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm))) |>
+  ungroup() |>
+  group_by(sim, year) |>
+  summarise(stratmu = (sum(wt_mu)) / survey_area, # part two of the stratified mean formula
+            stratvar = sum(wt_var),
+            cv = sqrt(stratvar)/stratmu) |>
+  mutate(rel_ihat = stratmu/mean(stratmu),
+         scenario = "Reallocation")
 
-## Simulate New Tow Data ####
-survdat_new_locs <- map2(pop, new_locations, ~sim_survey(.x$pop,
-                                   n_sims = nsurveys, # one survey per item in population list object
-                                   trawl_dim = trawl_dim,
-                                   q = catch_q,
-                                   set_den = set_den,
-                                   min_sets = min_sets,
-                                   age_sampling = age_sampling,
-                                   age_space_group = age_space_group,
-                                   custom_sets = .y,
-                                   resample_cells = resample_cells)
-)
-
-## Bind to precluded survey ####
-survdat_reall <- map2(survdat_precl, survdat_new_locs, ~bind_rows(.x, .y$setdet))
-
-
-map(survdat_reall, ~unique(.x$year))
-map(survdat_reall, ~table(.x$year, .x$AREA_CODE))
-map(survdat_reall, ~table(.x$sim, .x$AREA_CODE, .x$year))
-
-### to do: add code to bind survdat_new_locs$samps for length and age data to precluded survey for survey data product comps calculations
+### Bind Indices ####
+# bind all three scenario dataframes for efficient plotting and statistic calculation
+# indices <- bind_rows(ihat_sq, ihat_precl, ihat_reall)
+indices25 <- bind_rows(ihat_sq1, ihat_precl1, ihat_reall1)
 
 
-map(survdat_reall, ~ggplot(.x, aes(x = as.factor(year), fill = as.factor(AREA_CODE))) +
-      geom_bar() +
-      theme_minimal() +
-      labs(title = "Survey Tow Distribution After Reallocation", 
-           x = "Year", y = "Number of Tows", fill = "AREA_CODE"))
+# calculate the median relative abundance indices and the upper and lower confidence intervals across simulations and scenarios
+# indices_med <- indices |>
+#   group_by(year, scenario) |>
+#   summarise(med = median(rel_ihat),
+#             lower = quantile(rel_ihat, 0.025),
+#             upper = quantile(rel_ihat, 0.975)) |>
+#   mutate(type = "Estimated Relative Abundance Index")
+
+
+## Plots ####
+# bind the relative data frames and plot to compare scenarios to relative true abudnance
+# bind_rows(true_med, indices_med) |>
+# ggplot() +
+#   aes(x = year) +
+#   geom_line(aes(y = med, color = scenario)) +
+#   geom_ribbon(aes(ymin = lower, ymax = upper, fill = scenario), alpha = 0.25) +
+#   #geom_line(aes(y = rel_N), color = "red") +
+#   labs(x = "Year", y = "Relative Abundance ", color = "Scenario", fill = "Scenario", title = str_c("Comparison of median relative abundance across scenarios for", season, species, "populations", sep = " ")) +
+#   # scale_color_manual(name = "Type", values = c("darkblue", "red")) +
+#   # scale_fill_manual(name = "Type", values = c("darkblue", "red")) +
+#   theme(legend.position = "bottom")
+#
+# ggsave(str_c(species, season, "Med50RelAbundPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 10, height = 6)
+
+# ggplot() +
+#   aes(x = year) +
+#   geom_line(data = trueN, aes(y = rel_N, color = scenario)) +
+#   geom_line(data = indices, aes(y = rel_ihat, color = fct_inorder(scenario)), position = position_dodge(width = 0.5)) +
+#   labs(x = "Year", y = "Relative Abundance (in kilograms) ", subtitle = "Relative abundance of fall summer flounder", color = "Scenario") +
+#   ylim(0, NA) +
+#   facet_wrap(~sim)
+ggplot() +
+  aes(x = year) +
+  geom_line(data = trueN |> filter(sim ==1), aes(y = rel_N, color = scenario), size = 1) +
+  geom_point(data = indices25, aes(y = rel_ihat, color = fct_inorder(scenario)), position = position_dodge(width = 0.5)) + labs(x = "Year", y = "Relative Abundance (in kilograms) ", subtitle = "Relative abundance of fall scup", color = "Scenario") +
+  ylim(0, NA)
+
 
 
 ## SAVE THE DATA ####
-saveRDS(survdat_new_locs, here(survdat, str_c(species, season, length(nsims), "sims", "locs", nsurveys, "survdat.rds", sep = "_")))
-saveRDS(survdat_reall, here(survdat, str_c(species, season, length(nsims), "sims", "reall", nsurveys, "survdat.rds", sep = "_")))
-# saveRDS(survdat_new_locs, here(survdat, str_c(species, season, length(nsims), "sims", "locs", nsurveys, "survdat_nw.rds", sep = "_")))
-# saveRDS(survdat_reall, here(survdat, str_c(species, season, length(nsims), "sims", "reall", nsurveys, "survdat_nw.rds", sep = "_")))
+saveRDS(trueN, here(surv.prods, str_c(species, season, "rel-TrueN.rds", sep = "_")))
+saveRDS(indices25, here(surv.prods, str_c(species, season, "all-ihat_1pop-25survs.rds", sep = "_")))
+
+# saveRDS(indices20_nw, here(surv.prods, str_c(species, season, "all-ihat_1pop-20survs_nowind.rds", sep = "_")))
+saveRDS(ihat_sq1, here(surv.prods, str_c(species, season, "1pop-25sq_rel-ihat.rds", sep = "_")))
+saveRDS(ihat_precl1, here(surv.prods, str_c(species, season, "1pop-25precl_rel-ihat.rds", sep = "_")))
+saveRDS(ihat_reall1, here(surv.prods, str_c(species, season, "1pop-25reall_rel-ihat.rds", sep = "_")))
