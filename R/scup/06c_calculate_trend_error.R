@@ -111,13 +111,18 @@ saveRDS(slope_errors, here(surv.prods, str_c(species, season, "SlopeErrors.rds",
 #   labs(x = "Year", y = "Linear regression slope estimates", title = str_c("Distribution of linear regression slope estimates for", season, species, "survey", sep = " ")) +
 #   theme(legend.position = "bottom")
 
-ggplot() +
+indices25_lm_plot <- ggplot() +
   geom_boxplot(data = indices25_lm, aes(x = fct_inorder(scenario), y = estimate)) +
   geom_hline(yintercept = trueN_lm$estimate[1], lty = 5, color = "red", size = 0.75, show.legend = TRUE) +
   annotate("text", y = 0.25, x = 2, label = str_c("Relative true abunandance slope:", round(trueN_lm$estimate[1], 2), sep = " "), color = "red") +
   labs(x = "Scenario", y = "Linear regression slope estimate", subtitle = str_c("Distribution of linear regression slope estimates for", season, species, "survey indices over time", sep = " "))
 
-ggsave(str_c(species, season, "lm-ests-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+ggsave(str_c(species, season, "lm-ests-boxplot.png", sep = "_"),
+       plot = indices25_lm_plot,
+       device = "png",
+     #  last_plot(),
+       here(plots),
+       width = 8, height = 6)
 
 
 e1<-ggplot(slope_errors) +
@@ -126,7 +131,12 @@ e1<-ggplot(slope_errors) +
   labs(x = "Year", y = "Linear regression slope error", title = str_c("Distribution of errors of linear regression slope estimates for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "lm-errors-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+ggsave(str_c(species, season, "lm-errors-boxplot.png", sep = "_"),
+       plot = e1,
+       device = "png",
+   #    last_plot(),
+       here(plots),
+       width = 8, height = 6)
 
 e2<-ggplot(slope_errors) +
   geom_boxplot(aes(x = as.factor(scenario), y = rel_err, color = fct_inorder(scenario))) +
@@ -134,7 +144,12 @@ e2<-ggplot(slope_errors) +
   labs(x = "Year", y = "Linear regression slope relative errors", title = str_c("Distribution of relative errors of linear regression slope estimates for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "lm-rel-errors-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+ggsave(str_c(species, season, "lm-rel-errors-boxplot.png", sep = "_"),
+       plot = e2,
+       device = "png",
+     #  last_plot(),
+       here(plots),
+       width = 8, height = 6)
 
 e3<-ggplot(slope_errors) +
   geom_boxplot(aes(x = as.factor(scenario), y = abs_rel_err, color = fct_inorder(scenario))) +
@@ -142,7 +157,12 @@ e3<-ggplot(slope_errors) +
   labs(x = "Year", y = "Linear regression slope absolute relative errors", title = str_c("Distribution of absolute relative errors of linear regression slope estimates for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "lm-abs-rel-errors-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 9, height = 6)
+ggsave(str_c(species, season, "lm-abs-rel-errors-boxplot.png", sep = "_"),
+       plot = e3,
+       device = "png",
+       #last_plot(),
+       here(plots),
+       width = 9, height = 6)
 
 
 library(gridExtra)
