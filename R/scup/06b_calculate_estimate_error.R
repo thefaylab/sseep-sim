@@ -50,11 +50,17 @@ errors <- readRDS(here(perform.metrics, str_c(species, season,"1pop_25all-rel-er
 
 
 ## ESTIMATION ERROR ####
-ggplot(errors) +
+CVboxplot <- ggplot(errors) +
   geom_boxplot(aes(x = as.factor(year), y = cv, color = fct_inorder(scenario))) +
   ylim(0, NA) +
   labs(x = "Year", y = "CV", title = str_c("Distribution of CVs for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "CV-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+
+ggsave(str_c(species, season, "CV-boxplot.png", sep = "_"),
+       plot = CVboxplot,
+       device = "png",
+       # last_plot(),
+       here(plots),
+       width = 8, height = 6)
 
