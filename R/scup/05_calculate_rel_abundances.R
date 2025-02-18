@@ -223,7 +223,7 @@ indices25 <- bind_rows(ihat_sq1, ihat_precl1, ihat_reall1)
 #   facet_wrap(~sim)
 ggplot() +
   aes(x = year) +
-  geom_line(data = trueN |> filter(sim ==1), aes(y = rel_N, color = scenario), size = 1) +
+  geom_line(data = trueN |> filter(sim ==1), aes(y = rel_N, color = scenario), linewidth = 1) +
   geom_point(data = indices25, aes(y = rel_ihat, color = fct_inorder(scenario)), position = position_dodge(width = 0.5)) + labs(x = "Year", y = "Relative Abundance (in kilograms) ", subtitle = "Relative abundance of fall scup", color = "Scenario") +
   ylim(0, NA)
 

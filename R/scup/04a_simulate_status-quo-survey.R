@@ -12,6 +12,7 @@
 ### PACKAGES ####
 library(sdmTMB)
 library(SimSurvey)
+library(purrr)
 suppressPackageStartupMessages(library(tidyverse))
 library(data.table)
 library(here)
