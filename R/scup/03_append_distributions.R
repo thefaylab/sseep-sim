@@ -71,7 +71,7 @@ grid_xy <- readRDS(here("data", "rds", "survey_grid_all_122024.rds")) |>
 #grid_stars <- readRDS(here("data",  "survey_grid_stars_062022.rds"))
 
 
-grid_stars <- readRDS(here("data",  "survey_grid_all_stars_122024.rds")) |>
+grid_stars <- readRDS(here("data","rds",  "survey_grid_all_stars_122024.rds")) |>
   rename(depth = mean_2) |>
   dplyr::select(cell,depth, strat, AREA_CODE)
 
