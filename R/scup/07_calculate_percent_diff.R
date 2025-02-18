@@ -86,8 +86,13 @@ sq_reall_diff <- left_join(ihat_sq1, ihat_reall1, by = c("sim", "year")) |>
 diffs <- bind_rows(sq_precl_diff, sq_reall_diff)
 
 ## PLOT DISTRIBUTION ####
-ggplot(diffs) +
+perc_diff_plot<- ggplot(diffs) +
   geom_boxplot(aes(x = as.factor(year), y = perc_diff_mu, color = type)) +
   labs(x = "Year", y = "Absolute percent difference", subtitle = "Distribution of the absolute percent difference between\nrelative abundance indices when compared to the status quo index")
 
-ggsave(str_c(species, season, "perc-diff-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+ggsave(str_c(species, season, "perc-diff-boxplot.png", sep = "_"),
+       plot = perc_diff_plot,
+       device = "png",
+    #   last_plot(),
+       here(plots),
+       width = 8, height = 6)
