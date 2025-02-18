@@ -67,22 +67,32 @@ errors25 <- indices25 |> mutate(sim = as.character(sim)) |>
 
 ## PLOTS ####
 # relative error plot
-ggplot(errors25) +
+RelErrBoxPlot <- ggplot(errors25) +
   geom_boxplot(aes(x = as.factor(year), y = rel_err, color = fct_inorder(scenario))) +
   # ylim(0, NA) +
   labs(x = "Year", y = "Relative error", title = str_c("Distribution of relative errors for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "RelErrBoxPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+ggsave(str_c(species, season, "RelErrBoxPlot.png", sep = "_"),
+       plot = RelErrBoxPlot,
+       device = "png",
+     #  last_plot(),
+       here(plots),
+       width = 8, height = 6)
 
 # absolute relative error plot
-ggplot(errors25) +
+AbsRelErrBoxPlot <- ggplot(errors25) +
   geom_boxplot(aes(x = as.factor(year), y = abs_rel_err, color = fct_inorder(scenario))) +
   ylim(0, NA) +
   labs(x = "Year", y = "Absolute relative error", title = str_c("Distribution of absolute relative errors for", season, species, "survey", sep = " ")) +
   theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "AbsRelErrBoxPlot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+ggsave(str_c(species, season, "AbsRelErrBoxPlot.png", sep = "_"),
+       plot = AbsRelErrBoxPlot,
+       device = "png",
+      # last_plot(),
+       here(plots),
+       width = 8, height = 6)
 
 
 ## SAVE THE DATA ####
