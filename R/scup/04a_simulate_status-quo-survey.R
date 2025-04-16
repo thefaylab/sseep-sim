@@ -1,5 +1,5 @@
 ### created: 01/18/2024
-### updated: 01/21/2025
+### updated: 04/15/2025
 
 # 04a - SIMULATE STATUS QUO SURVEY ####
 
@@ -16,79 +16,105 @@ library(purrr)
 suppressPackageStartupMessages(library(tidyverse))
 library(data.table)
 library(here)
-# source(here("R", "sim_pop_fn.R"))
+source(here("R/selectivity_fns.R"))
 set.seed(131)
 
 
 ### DATA SET UP ####
-# data locations
-sdmtmb.dir <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis/sdmtmb"
-pop.dat <- here("data", "rds", "pops")
+# Directories
+pop.dat   <- here("data", "rds", "pops")
 Nage.dat <- here("data", "rds", "Nages")
-dist.dat <- here("data", "rds", "dists")
-survdat <- here("data", "rds", "survdat")
+dist.dat  <- here("data", "rds", "dists")
+survdat   <- here("data", "rds", "survdat")
 
-### name of species to be simulated
-species <- "scup"
+# Parameters
+species   <- "scup"
+season    <- "fall"
+ages      <- 0:7
+years     <- 1:15
+nsims     <- 1:100
+nsurveys  <- 25
+chunk_size <- 20
+chunks <- split(nsims, ceiling(nsims / chunk_size))
 
-### season to be simulated
-season <- "fall"
-
-### ages simulated
-ages <- 0:7
-
-### years projected
-years <- 1:15
-
-### number of simulations
-nsims <- 1:2
-
-### number of simulations
-nsurveys <- 25
-
-### trawl dimensions
-trawl_dim <- c(2.7, 0.014)
-
-### catchability from the most recent stock assessment
-source(here("R/selectivity_fns.R"))
-
-#catch_q <- sim_logistic(k = 2, x0 = 2.5)
-catch_q <- force_sim_logistic(k = -0.66, x0 = -1.14, plot = TRUE, force_age = TRUE, age = 0, force_sel = 1)
-### tow density allocation
-set_den <- 0.001
-
-### minimum sets to allocate per strata
-min_sets <- 3
-
-### age sampling method
-age_sampling <- "stratified"
-
-### spatial scale of age sampling
-age_space_group <- "set"  # age sampling with with tow and year
-
-### allow resampling of grid cells
-resample_cells <- TRUE
+# Trawl survey configuration
+trawl_dim       <- c(2.7, 0.014)
+catch_q         <- force_sim_logistic(k = -0.66, x0 = -1.14, plot = TRUE, force_age = TRUE, age = 0, force_sel = 1)
+set_den         <- 0.001
+min_sets        <- 3
+age_sampling    <- "stratified"
+age_space_group <- "set"
+resample_cells  <- TRUE
 
 
-### LOAD DATA ####
-# simulated abundance and distributions created here("R", "03_append_distributions.R")
-pop <- readRDS(here(dist.dat, str_c(species, season, length(nsims), "abund-dist.rds", sep = "_")))
-#pop_nw <- readRDS(here(dist.dat, str_c(species, season, length(nsims), "nowind-abund-dist.rds", sep = "_")))
+
+# Set which chunk to run (1 to 5)
+chunk_id <- 2
+this_chunk <- chunks[[chunk_id]]
+
+for (i in this_chunk) {
+  message(sprintf("Simulating survey for population %03d of chunk %d...", i, chunk_id))
+
+  # Load distributed pop object
+  pop_i <- readRDS(here(dist.dat, sprintf("%s_%s_%03d_abund-dist.rds", species, season, i)))
+
+  # Run the survey
+  survey_i <- sim_survey(
+    pop_i,
+    n_sims = nsurveys,
+    trawl_dim = trawl_dim,
+    q = catch_q,
+    set_den = set_den,
+    min_sets = min_sets,
+    age_sampling = age_sampling,
+    age_space_group = age_space_group,
+    resample_cells = resample_cells
+  )
+
+  # Save survey output
+  saveRDS(survey_i, file = here(survdat, sprintf("%s_%s_%03d_25_sq_survey.rds", species, season, i)))
+}
 
 
-## SIMULATE SURVEY ####
-survdat_sq <- map(pop, ~sim_survey(.$pop,
-                                   n_sims = nsurveys, # one survey per item in population list object
-                                   trawl_dim = trawl_dim,
-                                   q = catch_q,
-                                   set_den = set_den,
-                                   min_sets = min_sets,
-                                   age_sampling = age_sampling,
-                                   age_space_group = age_space_group,
-                                   resample_cells = resample_cells)
-)
+#Compare
+survdat_sq_old <- readRDS(here(survdat, "scup_fall_2_sims_25_sq-surv-dat.rds"))
+survdat_sq_1 <- readRDS(here(survdat, "scup_fall_001_25_sq_survey.rds"))
 
-# survdat_sq_nw <- map(pop_nw, ~sim_survey(.$pop,
+survdat_sq_old[[1]]$setdet
+survdat_sq_1$setdet
+
+
+#Count
+sq <- survdat_sq_1$setdet
+
+# Count sets by sim, year
+tow_counts <- sq |>
+  count(sim, year, name = "n_sets") #can add strat to check
+
+print(tow_counts)
+
+
+#Average number of tows per year across all simulations
+avg_tows_per_year <- sq |>
+  count(sim, year) |>
+  group_by(year) |>
+  summarise(
+    mean_tows = mean(n),
+    sims = n(),
+    .groups = "drop"
+  )
+
+print(avg_tows_per_year)
+
+
+# ### LOAD DATA ####
+# # simulated abundance and distributions created here("R", "03_append_distributions.R")
+# pop <- readRDS(here(dist.dat, str_c(species, season, length(nsims), "abund-dist.rds", sep = "_")))
+# #pop_nw <- readRDS(here(dist.dat, str_c(species, season, length(nsims), "nowind-abund-dist.rds", sep = "_")))
+#
+#
+# ## SIMULATE SURVEY ####
+# survdat_sq <- map(pop, ~sim_survey(.$pop,
 #                                    n_sims = nsurveys, # one survey per item in population list object
 #                                    trawl_dim = trawl_dim,
 #                                    q = catch_q,
@@ -96,11 +122,24 @@ survdat_sq <- map(pop, ~sim_survey(.$pop,
 #                                    min_sets = min_sets,
 #                                    age_sampling = age_sampling,
 #                                    age_space_group = age_space_group,
-#                                    resample_cells = resample_cells))
+#                                    resample_cells = resample_cells)
+# )
 #
-
-## SAVE THE DATA ####
-saveRDS(survdat_sq, here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat.rds", sep = "_")))
-#saveRDS(survdat_sq_nw, here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat_nw.rds", sep = "_")))
-
+# # survdat_sq_nw <- map(pop_nw, ~sim_survey(.$pop,
+# #                                    n_sims = nsurveys, # one survey per item in population list object
+# #                                    trawl_dim = trawl_dim,
+# #                                    q = catch_q,
+# #                                    set_den = set_den,
+# #                                    min_sets = min_sets,
+# #                                    age_sampling = age_sampling,
+# #                                    age_space_group = age_space_group,
+# #                                    resample_cells = resample_cells))
+# #
+#
+# ## SAVE THE DATA ####
+# saveRDS(survdat_sq, here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat.rds", sep = "_")))
+# #saveRDS(survdat_sq_nw, here(survdat, str_c(species, season, length(nsims), "sims", nsurveys, "sq-surv-dat_nw.rds", sep = "_")))
+#
+#
+#
 

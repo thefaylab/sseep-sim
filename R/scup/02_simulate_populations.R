@@ -1,5 +1,5 @@
 ### created: 01/18/2024
-### updated: 02/09/2025
+### updated: 04/11/2025
 
 # 02 - SIMULATE POPULATIONS ####
 
@@ -10,48 +10,32 @@
 # Outputs: simulated abundance for a user provided species of interested over a set of iterations
 
 ### PACKAGES ####
-library(SimSurvey)
 suppressPackageStartupMessages(library(tidyverse))
+library(SimSurvey)
 library(here)
 library(plotly)
 source(here("R", "sim_pop_fn.R"))
-# random seed number for generating different populations but for reproducibility of simulation
-set.seed(131)
+set.seed(131) # random seed number for generating different populations but for reproducibility of simulation
+
 
 
 ### DATA SET UP ####
-#read species data
-
 
 # location of where to save data
 pop.dat <- here("data", "rds", "pops")
 Nage.dat <- here("data", "rds", "Nages")
 
+#read species data
 
-### name of species to be simulated
-species <- "scup"
-
-### number of simulations of the population
-nsims <- 1:2
-
-# generate a set random numbers to set seed with each iteration for reproducibility
-seed <- sample.int(1e6, length(nsims))
+species <- "scup" # name of species to be simulated
+nsims <- 1:100 # number of simulations of the population
+ages <- 0:7 # ages to simulate
+years <- 1:15 # number of years of a given population
 
 
-#### STOCK ASSESSMENT VALUES ####
-### replace with the values respective to species being simulated
-
-# ages to simulate
-ages <- 0:7
-
-# number of years of a given population
-years <- 1:15
-
-# Average Rec from benchmark SA
-Rec <- c(107,142,75,61,112)*1e6
+#Recruitment
+Rec <- c(107,142,75,61,112)*1e6 # Average Rec from benchmark SA
 R_mean <- mean(Rec)
-
-# Calculate recruitment CV
 R_sd <- sd(Rec)  # Standard deviation of recruitment
 R_cv <- R_sd / R_mean  # Coefficient of Variation
 
@@ -59,27 +43,23 @@ R_cv <- R_sd / R_mean  # Coefficient of Variation
 sigma_R <- sqrt(log(1 + R_cv^2))  # Conversion from CV to log-scale
 
 set.seed(42)  # For reproducibility
-
 # Simulate recruitment with log-normal variability
 Rec_age0 <- R_mean * exp(rnorm(years, mean = 0, sd = sigma_R))
 
 # Fixed fishing mortality
 F_fixed <- c(0.01, 0.01, 0.01, 0.1, 0.1, 0.1, 0.05, 0.05)  # F for ages 0-7
-# Constant F across years
-F <- matrix(F_fixed, nrow = length(ages), ncol = length(years))
-
-# natural mortality
-M <- 0.2
-
-#total mortality
-Z <- F + M
-#mean(Z)
-#sd(Z)
-#log(sd(Z))
+F <- matrix(F_fixed, nrow = length(ages), ncol = length(years)) # Constant F across years
+M <- 0.2 # natural mortality
+Z <- F + M #total mortality
 
 # Von Bertalanffy growth parameters for both male and female
 Linf = 46.6
 K = 0.15
+
+
+# generate a set random numbers to set seed with each iteration for reproducibility
+set.seed(42)
+seed <- sample.int(1e6, length(nsims))
 
 
 ## SIMULATE ABUNDANCE ####
@@ -100,13 +80,14 @@ Nage <- map_df(pop, ~pluck(., "N") |>
          year = as.integer(year))
 
 
+
 #Plot 1
 ggplot(Nage, aes(x = year, y = age, fill = Nage)) +
   geom_tile() +
   scale_fill_viridis_c(option = "D", name = "Numbers at Age") + # Color scale
   labs(title = "Numbers at Age",
        x = "Year", y = "Age") +
-  facet_wrap(~sim, ncol = 2) + # Facet by simulation
+  #facet_wrap(~sim, ncol = 2) + # Facet by simulation
   theme_minimal(base_size = 14) +
   theme(strip.text = element_text(face = "bold", size = 12),
         legend.position = "bottom", legend.text = element_text(size = 10, angle = 45))
@@ -142,8 +123,29 @@ plots <- nage_data |>
 # Display a specific plot (e.g., first simulation)
 plots[[1]]
 plots[[2]]
+plots[[100]]
 
+
+# Save each pop object individually
+for (i in seq_along(pop)) {
+  saveRDS(
+    pop[[i]],
+    file = file.path(pop.dat, sprintf("%s_pop_fall_%03d.rds", species, i))
+  )
+  message(sprintf("Saved %s_pop_fall_%03d.rds", species, i))
+}
+
+
+# Save each Nage object individually
+sim_ids <- unique(Nage$sim)
+
+# Loop through and save each one
+for (i in sim_ids) {
+  nage_i <- Nage |> filter(sim == i)
+  saveRDS(nage_i, file = file.path(Nage.dat, sprintf("scup_Nage_fall_%03d.rds", i)))
+  message(sprintf("Saved scup_Nage_fall_%03d.rds", i))
+}
 
 ## SAVE THE DATA ####
-saveRDS(pop, here(pop.dat, str_c(species, length(nsims), "pop.rds", sep = "_")))
-saveRDS(Nage, here(Nage.dat, str_c(species, length(nsims), "Nage.rds", sep = "_")))
+saveRDS(pop, here(pop.dat, str_c(species, length(nsims), "pop100.rds", sep = "_")))
+saveRDS(Nage, here(Nage.dat, str_c(species, length(nsims), "Nage100.rds", sep = "_")))
