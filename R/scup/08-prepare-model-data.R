@@ -8,7 +8,7 @@ sseep.analysis <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis"
 dist.dat <- here("data", "rds", "dists")
 survdat <- here("data", "rds", "survdat")
 surv.prods <- here("data", "rds", "surv-prods")
-mods.data <- here("data", "rds", "surv-prods", "mods_data", "sumflounder")
+mods.data <- here("data", "rds", "surv-prods", "mods_data", "scup")
 plots <- here("outputs", "plots")
 
 
