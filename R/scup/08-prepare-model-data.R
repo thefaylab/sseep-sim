@@ -46,9 +46,9 @@ add_latlon <- function(df, crs_proj = 32618) {
 
 
 
-# survdat_precl is your original list of 100 population data.tables
+# survdat_precl is the original list of 100 population data.tables
 survdat_precl <- lapply(survdat_precl, function(df) {
-  df <- as.data.frame(df)     # in case it's a data.table
+  df <- as.data.frame(df)     
   df <- add_latlon(df)        # append lon/lat
   return(df)
 })
