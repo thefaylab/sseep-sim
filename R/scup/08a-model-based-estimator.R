@@ -5,7 +5,7 @@
 # 01 - IMPORT SCUP DATA FROM SURVEY ####
 
 ## OBJECTIVE ####
-# prepare data for sdmTMB model fits and predicting
+# sdmTMB model fits and predicting
 
 
 ## LOAD PACKAGES ####
@@ -58,7 +58,7 @@ length(mab_strata)
 
 
 
-### filter specific strata ####
+#filter
 
 simdat_filt <- simdat_1_1 |> filter(AVGDEPTH <= 75,  STRATUM %in% mab_strata) |>
   mutate(YEAR = as.factor(YEAR)) |>
@@ -113,7 +113,7 @@ if (!file.exists(log_file)) {
   writeLines("pop,sim,status,elapsed_sec,n_rows,message", con = log_file)
 }
 
-## Loop for ultiple sims and pops ####
+## Loop for multiple sims and pops ####
 for (pop in pops) {
   for (sim in sims) {
 
@@ -145,7 +145,7 @@ for (pop in pops) {
         mutate(YEAR = as.factor(YEAR)) %>%
         group_by(set, sim, SEASON, YEAR)
 
-      # Basic guard: if filtering leaves nothing, skip
+      # if filtering leaves nothing, skip
       if (nrow(simdat_filt) == 0) stop("No rows after filtering (AVGDEPTH/STRATUM).")
 
       simdat_mesh <- make_mesh(simdat_filt, xy_cols = c("X", "Y"), cutoff = 10)
@@ -159,10 +159,10 @@ for (pop in pops) {
         time = "YEAR",
         spatiotemporal = "IID",
         control = sdmTMBcontrol(newton_loops = 1),
-        silent = TRUE   # set FALSE if you want console output
+        silent = TRUE
       )
 
-      # Save fit object to disk (and ONLY to disk)
+      # Save fit object to disk
       saveRDS(fit, out_path)
 
       elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
@@ -170,7 +170,7 @@ for (pop in pops) {
                   pop, sim, elapsed, nrow(simdat_filt), "saved"),
           file = log_file, append = TRUE)
 
-      # IMPORTANT: drop fit from memory explicitly
+      # drop fit from memory
       rm(fit, simdat, simdat_filt, simdat_mesh)
       gc()
 
@@ -179,7 +179,6 @@ for (pop in pops) {
     }, error = function(e) {
 
       elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
-      # Escape commas in message for CSV safety
       msg <- gsub(",", ";", conditionMessage(e))
       cat(sprintf("%d,%d,error,%.3f,NA,%s\n", pop, sim, elapsed, msg),
           file = log_file, append = TRUE)
@@ -190,7 +189,7 @@ for (pop in pops) {
       FALSE
     })
 
-    # optional progress print
+    #progress print
     message(sprintf("pop %03d sim %02d -> %s", pop, sim, if (isTRUE(res)) "OK" else "FAIL"))
   }
 }

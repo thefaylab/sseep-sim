@@ -138,7 +138,7 @@ for (p in unique(tb_sq$pop)) {
 
     file_name <- sprintf("sq_pop%03d_sim%02d.rds", p, s)
     file_path <- file.path(mods.data, file_name) # Save full path
-    write_rds(sub, file_path, compress = "gz")  # Write to disk immediately
+    write_rds(sub, file_path, compress = "gz")  # Write to disk
   }
 }
 
