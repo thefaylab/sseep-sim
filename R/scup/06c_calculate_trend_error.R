@@ -1,13 +1,11 @@
 ### created: 01/22/2024
-### updated: 02/07/2024
+### updated: 05/01/2024
 
 # 06c - CALCULATE ERROR IN TREND OVER TIME ####
 
 
 ## Objective ####
 #
-
-# Outputs:
 
 ### PACKAGES ####
 library(sdmTMB)
@@ -20,43 +18,29 @@ library(broom)
 
 
 ### DATA SET UP ####
-# data locations
-# sseep.analysis <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis"
-# survdat <- here("data", "rds", "survdat")
+#Directories
 surv.prods <- here("data", "rds", "surv-prods")
 perform.metrics <- here("data", "rds", "perform-metrics")
 plots <- here("outputs", "plots")
 
-### name of species to be simulated
 species <- "scup"
-
-### season to be simulated
 season <- "fall"
-
-### ages simulated
 ages <- 0:7
-
-### years projected
 years <- 1:15
-
-### number of simulations
-nsims <- 1:2
-
-### number of simulations
+nsims <- 1:100
 nsurveys <- 25
 
-### LOAD DATA ####
 # relative true abundance created here("R", "05_calculate_rel_abundance.R")
-trueN <- readRDS(here(surv.prods, str_c(species, season, "rel-TrueN.rds", sep = "_")))
+trueN <- readRDS(here(surv.prods, str_c(species, season, "all_rel-TrueN-100pops.rds", sep = "_")))
 
 # relative abunance indices across scenarios created here("R", "05_calculate_rel_abundance.R")
-# indices <- readRDS(here(surv.prods, str_c(species, season, "all-ihat.rds", sep = "_")))
-indices25 <- readRDS(here(surv.prods, str_c(species, season, "all-ihat_1pop-25survs.rds", sep = "_")))
+indices <- readRDS(here(surv.prods, str_c(species, season, "all-ihat-25survs-100pops.rds", sep = "_")))
 
 
 ## ERROR IN TREND OVER TIME ####
 # relative true abundance trends
 trueN_lm <- trueN |>
+  mutate(sim = 1) |>
   group_by(sim, scenario) |>
   nest() |>
   mutate(mods = map(data, ~lm(rel_N ~ year, data = .x)),
@@ -67,7 +51,7 @@ trueN_lm <- trueN |>
 
 saveRDS(trueN_lm, here(surv.prods, str_c(species, season, "TrueRelAbundTrends.rds", sep = "_")))
 
-indices25_lm <- indices25 |>
+indices_lm <- indices |>
   group_by(sim, scenario) |>
   nest() |>
   mutate(mods = map(data, ~lm(rel_ihat ~ year, data = .x)),
@@ -76,10 +60,10 @@ indices25_lm <- indices25 |>
   select(sim, slope, scenario) |>
   unnest(cols = slope)
 
-saveRDS(indices25_lm, here(surv.prods, str_c(species, season, "RelIndexTrends.rds", sep = "_")))
+saveRDS(indices_lm, here(surv.prods, str_c(species, season, "RelIndexTrends.rds", sep = "_")))
 
 
-slope_errors <- indices25_lm |>
+slope_errors <- indices_lm |>
   select(sim, term, estimate) |>
   # left_join(trueN_lm[1:3], by = "sim") |>
   bind_cols(trueN_lm[1,1:3]) |>
@@ -111,60 +95,93 @@ saveRDS(slope_errors, here(surv.prods, str_c(species, season, "SlopeErrors.rds",
 #   labs(x = "Year", y = "Linear regression slope estimates", title = str_c("Distribution of linear regression slope estimates for", season, species, "survey", sep = " ")) +
 #   theme(legend.position = "bottom")
 
-indices25_lm_plot <- ggplot() +
-  geom_boxplot(data = indices25_lm, aes(x = fct_inorder(scenario), y = estimate)) +
-  geom_hline(yintercept = trueN_lm$estimate[1], lty = 5, color = "red", size = 0.75, show.legend = TRUE) +
-  annotate("text", y = 0.25, x = 2, label = str_c("Relative true abunandance slope:", round(trueN_lm$estimate[1], 2), sep = " "), color = "red") +
-  labs(x = "Scenario", y = "Linear regression slope estimate", subtitle = str_c("Distribution of linear regression slope estimates for", season, species, "survey indices over time", sep = " "))
+# Set the correct scenario order
+indices_lm <- indices_lm |>
+  mutate(scenario = factor(scenario, levels = c("Status Quo", "Preclusion", "Reallocation")))
 
-ggsave(str_c(species, season, "lm-ests-boxplot.png", sep = "_"),
-       plot = indices25_lm_plot,
-       device = "png",
-     #  last_plot(),
-       here(plots),
-       width = 8, height = 6)
+slope_errors <- slope_errors |>
+  mutate(scenario = factor(scenario, levels = c("Status Quo", "Preclusion", "Reallocation")))
 
 
-e1<-ggplot(slope_errors) +
-  geom_boxplot(aes(x = as.factor(scenario), y = err, color = fct_inorder(scenario))) +
-  # ylim(0, NA) +
-  labs(x = "Year", y = "Linear regression slope error", title = str_c("Distribution of errors of linear regression slope estimates for", season, species, "survey", sep = " ")) +
-  theme(legend.position = "bottom")
 
-ggsave(str_c(species, season, "lm-errors-boxplot.png", sep = "_"),
-       plot = e1,
-       device = "png",
-   #    last_plot(),
-       here(plots),
-       width = 8, height = 6)
+#plots
 
-e2<-ggplot(slope_errors) +
-  geom_boxplot(aes(x = as.factor(scenario), y = rel_err, color = fct_inorder(scenario))) +
-  # ylim(0, NA) +
-  labs(x = "Year", y = "Linear regression slope relative errors", title = str_c("Distribution of relative errors of linear regression slope estimates for", season, species, "survey", sep = " ")) +
-  theme(legend.position = "bottom")
-
-ggsave(str_c(species, season, "lm-rel-errors-boxplot.png", sep = "_"),
-       plot = e2,
-       device = "png",
-     #  last_plot(),
-       here(plots),
-       width = 8, height = 6)
-
-e3<-ggplot(slope_errors) +
-  geom_boxplot(aes(x = as.factor(scenario), y = abs_rel_err, color = fct_inorder(scenario))) +
-  # ylim(0, NA) +
-  labs(x = "Year", y = "Linear regression slope absolute relative errors", title = str_c("Distribution of absolute relative errors of linear regression slope estimates for", season, species, "survey", sep = " ")) +
-  theme(legend.position = "bottom")
-
-ggsave(str_c(species, season, "lm-abs-rel-errors-boxplot.png", sep = "_"),
-       plot = e3,
-       device = "png",
-       #last_plot(),
-       here(plots),
-       width = 9, height = 6)
+ggplot(indices_lm) +
+  geom_boxplot(aes(x = scenario, y = estimate, fill = fct_inorder(scenario)),
+               position = position_dodge(width = 0.8),
+               outlier.shape = NA,
+               color = "black") +
+  scale_fill_manual(values = c("Status Quo" = "salmon", "Preclusion" = "goldenrod", "Reallocation" = "steelblue")) +
+  labs(x = "Scenario", y = "Linear regression slope estimate",
+       title = str_c("Distribution of linear regression slope estimates survey indices"), subtitle = "Scup - Fall") +
+  theme_bw() +
+  geom_hline(yintercept = trueN_lm$estimate[1], lty = 5, color = "chocolate4", linewidth = 0.75, show.legend = TRUE) +
+  annotate("text", y = 0.01, x = 2, label = str_c("Relative true abundance slope: ", round(trueN_lm$estimate[1], 2)),
+           color = "chocolate4", size = 5) +
+  theme( text = element_text(size = 14),
+         axis.title = element_text(size = 14),
+         plot.title = element_text(size = 16, face = "bold"),
+         legend.position = "none", legend.title = element_blank())
 
 
-library(gridExtra)
-grid.arrange(e1, e2, e3, ncol=1)
+
+ggsave(str_c(species, season, "lm-ests-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+
+
+
+
+ggplot(slope_errors) +
+  geom_boxplot(aes(x = scenario, y = err, fill = fct_inorder(scenario)),
+               position = position_dodge(width = 0.8),
+               outlier.shape = NA,
+               color = "black") +
+  scale_fill_manual(values = c("Status Quo" = "salmon", "Preclusion" = "goldenrod", "Reallocation" = "steelblue")) +
+  labs(x = "Scenario", y = "Linear regression slope",
+    title = str_c("Errors of linear regression slope estimates") , subtitle = "Scup - Fall") +
+  theme_bw() +
+  theme( text = element_text(size = 14),
+         axis.title = element_text(size = 14),
+         plot.title = element_text(size = 16, face = "bold"),
+         legend.position = "none", legend.title = element_blank())
+
+
+ggsave(str_c(species, season, "lm-errors-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+
+ggplot(slope_errors) +
+  geom_boxplot(aes(x = scenario, y = rel_err, fill = fct_inorder(scenario)),
+               position = position_dodge(width = 0.8),
+               outlier.shape = NA,
+               color = "black") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "chocolate4", linewidth = 1) +
+  labs(title = "Relative errors of linear regression slope estimates",  subtitle = "Scup - Fall",
+       x = "Scenario", y = "Linear regression slope", fill = "Scenario") +
+  scale_fill_manual(values = c("Status Quo" = "salmon",
+                               "Preclusion" = "goldenrod",
+                               "Reallocation" = "steelblue")) +
+  theme_bw() +
+  theme( text = element_text(size = 14),
+         axis.title = element_text(size = 14),
+         plot.title = element_text(size = 16, face = "bold"),
+         legend.position = "none", legend.title = element_blank())
+
+ggsave(str_c(species, season, "lm-rel-errors-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+
+
+ggplot(slope_errors) +
+  geom_boxplot(aes(x = scenario, y = abs_rel_err, fill = fct_inorder(scenario)),
+               position = position_dodge(width = 0.8),
+               outlier.shape = NA,
+               color = "black") +
+  labs(title = "Absolute relative errors of linear regression slope estimates", subtitle = "Scup - Fall",
+       x = "Scenario", y = "Linear regression slope", fill = "Scenario") +
+  scale_fill_manual(values = c("Status Quo" = "salmon",
+                               "Preclusion" = "goldenrod",
+                               "Reallocation" = "steelblue")) +
+  theme_bw() +
+  theme( text = element_text(size = 14),
+         axis.title = element_text(size = 14),
+         plot.title = element_text(size = 16, face = "bold"),
+         legend.position = "none", legend.title = element_blank())
+
+ggsave(str_c(species, season, "lm-abs-rel-errors-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 9, height = 6)
 

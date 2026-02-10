@@ -11,90 +11,189 @@
 #  a dataframe with values for each simulation and year pertaining to the relative error and absolute relative error of a given survey and its abundance index compared to the relative true abundance
 # the relative errors and absolute errors for a given survey scenario plotted across time
 
+
 ### PACKAGES ####
-library(sdmTMB)
-library(SimSurvey)
-suppressPackageStartupMessages(library(tidyverse))
-library(data.table)
+library(tidyverse)
 library(here)
-# source(here("R", "sim_stratmean_fn.R"))
+library(data.table)
+library(sdmTMB)
+source(here("R", "sim_stratmean_fn.R"))
 theme_set(theme_bw())
 
 
 ### DATA SET UP ####
-# data locations
-# sseep.analysis <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis"
-# survdat <- here("data", "rds", "survdat")
+#Directories
 surv.prods <- here("data", "rds", "surv-prods")
 perform.metrics <- here("data", "rds", "perform-metrics")
 plots <- here("outputs", "plots")
 
-### name of species to be simulated
+# Parameters
 species <- "scup"
-
-### season to be simulated
-season <- "fall"
-
-### ages simulated
-ages <- 0:7
-
-### years projected
-years <- 1:15
-
-### number of simulations
-nsims <- 1:2
-
-### number of simulations
+season  <- "fall"
+ages      <- 0:7
+years     <- 1:15
+nsims   <- 1:100
+ids     <- sprintf("%03d", nsims)
 nsurveys <- 25
 
 
-### LOAD DATA ####
+#Data
+# pop <- map(ids, ~readRDS(here(dist.dat, sprintf("%s_%s_%s_abund-dist.rds", species, season, .x))))
+# survdat_sq <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_sq_survey.rds", species, season, .x))))
+# survdat_precl <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_precl_survey.rds", species, season, .x))))
+# survdat_reall <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_reall_survey.rds", species, season, .x))))
+# dist          <- map(ids, ~readRDS(here(dist.dat, sprintf("%s_%s_%s_dist-only.rds", species, season, .x))))
+
+
+
 # relative true abundance created here("R", "05_calculate_rel_abundance.R")
-trueN <- readRDS(here(surv.prods, str_c(species, season, "rel-TrueN.rds", sep = "_")))
+trueN <- readRDS(here(surv.prods, str_c(species, season, "all_rel-TrueN-100pops.rds", sep = "_")))
 
 # relative abunance indices across scenarios created here("R", "05_calculate_rel_abundance.R")
-# indices <- readRDS(here(surv.prods, str_c(species, season, "all-ihat.rds", sep = "_")))
-indices25 <- readRDS(here(surv.prods, str_c(species, season, "all-ihat_1pop-25survs.rds", sep = "_")))
+indices <- readRDS(here(surv.prods, str_c(species, season, "all-ihat-25survs-100pops.rds", sep = "_")))
+
+#i1to5_pop1 <- indices |> filter(year <= 5 & pop == 1 & year == 1 & sim <= 5)
 
 ## CALCULATE RELATIVE AND ABSOLUTE ERRORS ####
-errors25 <- indices25 |> mutate(sim = as.character(sim)) |>
-   left_join(trueN, by = "year") |>
-   mutate(rel_err = (rel_ihat-rel_N)/rel_N,
-          abs_rel_err = abs(rel_err)) |>
-  dplyr::select(!scenario.y) |> #delete TRUE name column only.
-  rename(scenario = scenario.x) #scenarios are relative to TRUE rel N
+errors <- indices %>%
+  mutate(sim = as.character(sim), pop = as.character(pop)) |>
+  left_join( trueN |> mutate(pop = as.character(pop)), by = c("pop", "year")) |>
+  mutate(rel_err = (rel_ihat - rel_N) / rel_N,
+         abs_rel_err = abs(rel_err)) |>
+  select(!scenario.y) |> #delete TRUE name column only.
+  rename(scenario = scenario.x)#scenarios and populations are relative to TRUE rel N
 
 
 ## PLOTS ####
 # relative error plot
-RelErrBoxPlot <- ggplot(errors25) +
-  geom_boxplot(aes(x = as.factor(year), y = rel_err, color = fct_inorder(scenario))) +
-  # ylim(0, NA) +
-  labs(x = "Year", y = "Relative error", title = str_c("Distribution of relative errors for", season, species, "survey", sep = " ")) +
-  theme(legend.position = "bottom")
+
+
+errors <- errors %>%
+  mutate(scenario = factor(scenario, levels = c("Status Quo", "Preclusion", "Reallocation")),
+         period = if_else(year <= 5, "Years 1-5", "Years 6-15"))
+
+RelErrBoxPlot <- ggplot(errors, aes(x = period, y = rel_err, fill = scenario)) +
+  geom_boxplot(position = position_dodge(width = 0.8),
+               outlier.shape = NA,
+               color = "black") + ylim(-1.5,1.5) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "chocolate4", linewidth = 1) +
+  labs(title = "Distribution of Relative Errors ",
+       x = "Period", y = "Relative Error", fill = "Scenario") +
+  scale_fill_manual(values = c("Status Quo" = "salmon",
+                               "Preclusion" = "goldenrod",
+                               "Reallocation" = "steelblue")) +
+  theme(text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 16, face = "bold"),
+        legend.position = "right", legend.title = element_blank())
+
 
 ggsave(str_c(species, season, "RelErrBoxPlot.png", sep = "_"),
        plot = RelErrBoxPlot,
        device = "png",
-     #  last_plot(),
+       # last_plot(),
        here(plots),
        width = 8, height = 6)
 
-# absolute relative error plot
-AbsRelErrBoxPlot <- ggplot(errors25) +
-  geom_boxplot(aes(x = as.factor(year), y = abs_rel_err, color = fct_inorder(scenario))) +
-  ylim(0, NA) +
-  labs(x = "Year", y = "Absolute relative error", title = str_c("Distribution of absolute relative errors for", season, species, "survey", sep = " ")) +
-  theme(legend.position = "bottom")
+
+
+##Absolute Error
+
+AbsRelErrBoxPlot <- ggplot(errors, aes(x = period, y = abs_rel_err, fill = scenario)) +
+  geom_boxplot(position = position_dodge(width = 0.8),
+               outlier.shape = NA,
+               color = "black") + ylim(0,1.5) +
+  #  geom_hline(yintercept = 0, linetype = "dashed", color = "chocolate4", linewidth = 1) +
+  labs(title = "Distribution of Absolute Relative Errors",
+       x = "Period", y = "Absolute Relative Error", fill = "Scenario") +
+  scale_fill_manual(values = c("Status Quo" = "salmon",
+                               "Preclusion" = "goldenrod",
+                               "Reallocation" = "steelblue")) +
+  theme(text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 16, face = "bold"),
+        legend.position = "right", legend.title = element_blank())
+
 
 ggsave(str_c(species, season, "AbsRelErrBoxPlot.png", sep = "_"),
        plot = AbsRelErrBoxPlot,
        device = "png",
-      # last_plot(),
+       # last_plot(),
        here(plots),
        width = 8, height = 6)
 
 
+
+
 ## SAVE THE DATA ####
-saveRDS(errors25, here(perform.metrics, str_c(species, season, "1pop_25all-rel-error.rds", sep = "_")))
+saveRDS(errors, here(perform.metrics, str_c(species, season, "25all-rel-error-100pops.rds", sep = "_")))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##RElative Error
+
+ggplot(errors, aes(x = as.factor(year), y = rel_err, fill = scenario)) +
+  geom_boxplot(position = position_dodge(width = 0.8),
+               outlier.shape = NA,
+               color = "black") + ylim(-1.5,1.5) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "chocolate4", linewidth = 1) +
+  labs(title = "Distribution of Relative Errors",
+    x = "Year", y = "Relative Error", fill = "Scenario") +
+  scale_fill_manual(values = c("Status Quo" = "salmon",
+                               "Preclusion" = "goldenrod",
+                               "Reallocation" = "steelblue")) +
+  theme( text = element_text(size = 14),
+    axis.title = element_text(size = 14),
+    plot.title = element_text(size = 16, face = "bold"),
+    legend.position = "right", legend.title = element_blank())
+
+
+
+
+
+
+ggplot(errors, aes(x = scenario, y = rel_err, fill = scenario)) +
+  geom_boxplot(position = position_dodge(width = 0.8),
+               outlier.shape = 21, outlier.fill = "white", color = "black") +
+  labs(
+    title = "Distribution of Relative Errors",
+    x = "Scenario",
+    y = "Relative Error",
+    fill = "Scenario"
+  ) +
+  scale_fill_manual(values = c("Status Quo" = "salmon",
+                               "Preclusion" = "#DAA520",
+                               "Reallocation" = "#4682B4")) +
+  theme(
+    text = element_text(size = 14),
+    axis.title = element_text(size = 14),
+    plot.title = element_text(size = 16, face = "bold"),
+    legend.position = "none")
+
+
+
+
+
 

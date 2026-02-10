@@ -31,7 +31,7 @@ dist.dat <- here("data", "rds", "dists")
 #read species data
 species <- "scup" # name of species to be simulated
 season <- "fall" #survey season
-nsims <- 1:100 # number of simulations of the population
+nsims <- 1:10 # number of simulations of the population
 ages <- 0:7 # ages to simulate
 years <- 1:15 # number of years of a given population
 seed <- sample.int(1e6, length(nsims))
@@ -70,131 +70,136 @@ preds <- readRDS(file = here(sdmtmb.dir, species, "data", str_c(season, "_grid_p
                    median_1, mean_1, n1, Cell_Area, median_2, mean_2, n2, New_area, Perc_reduction)) |>
   relocate(depth, .after = cell)
 
-#append distributions to each pop
+
+# Loop over 100 pops
 for (i in seq_along(nsims)) {
-  message(sprintf("Appending dist to pop %03d of %d...", i, length(nsims)))
+  message(sprintf("Appending spatial distribution for population %03d...", i))
 
-  # 1. Load population and Nage
-  pop_i <- readRDS(file.path(pop.dat, sprintf("%s_pop_fall_%03d.rds", species, i)))
-  Nage  <- readRDS(file.path(Nage.dat, sprintf("%s_Nage_fall_%03d.rds", species, i)))
+  # Load population and Nage
+  pop_i  <- readRDS(file.path(pop.dat, sprintf("%s_pop_fall_%03d.rds", species, i)))
+  Nage_i <- readRDS(file.path(Nage.dat, sprintf("%s_Nage_fall_%03d.rds", species, i)))
 
-  # 2. Filter predictions
-  dist_yr <- sample_years(years, preds$EST_YEAR, replace = TRUE, seed = seed[i])
-  preds_i <- filter_distributions(dist_yr, preds, seed = seed[i]) |> as.data.table()
+  # Sample distribution years and filter SDM predictions
+ # dist_yr  <- sample_years(years, preds$EST_YEAR, replace = TRUE, seed = i)
+#  preds_i  <- filter_distributions(dist_yr, preds, seed = i) |> as.data.table()
+  fixed_est_year <- 2013
 
-  # 3. Replicate over ages
+  dist_yr <- tibble::tibble(
+    year     = years,          #  sim years 1:15
+    EST_YEAR = fixed_est_year  # real year for all sim years
+  )
+  preds_i <- filter_distributions(dist_yr, preds, seed = i) |>  as.data.table()
+
+
+  # Replicate predictions over age
   dist <- sdmTMB::replicate_df(preds_i, "age", ages)
 
-  # 4. Join with Nage and compute distribution
-  dist <- left_join(dist, Nage, by = c("year", "age")) |>
+  # Join with Nage to compute N
+  dist <- left_join(dist, Nage_i, by = c("year", "age")) |>
     group_by(year, age) |>
     mutate(
-      P_i = N_dist / sum(N_dist),
-      N   = Nage * P_i,
-      age = as.double(age),
-      cell = as.double(cell),
+      P_i      = N_dist / sum(N_dist),
+      N        = Nage * P_i,
+      age      = as.double(age),
+      cell     = as.double(cell),
       division = 1
     ) |>
     ungroup() |>
     as.data.table()
 
-  # 4a. If EST_YEAR is missing, attach it from 'preds' using 'cell' as the key
-  if (!("EST_YEAR" %in% colnames(dist))) {
-    dist[, EST_YEAR := preds$EST_YEAR[match(cell, preds$cell)]]
-  }
-  if (!("SEASON" %in% colnames(dist))) {
-    dist[, SEASON := preds$SEASON[ match(cell, preds$cell) ]]
-  }
-  if (!("AREA" %in% colnames(dist))) {
-    dist[, AREA := preds$AREA[ match(cell, preds$cell) ]]
-  }
+  # Fill in EST_YEAR, SEASON, AREA if missing
+  dist[, EST_YEAR := if (!"EST_YEAR" %in% names(dist)) preds$EST_YEAR[match(cell, preds$cell)] else EST_YEAR]
+  dist[, SEASON   := if (!"SEASON"   %in% names(dist)) preds$SEASON[match(cell, preds$cell)] else SEASON]
+  dist[, AREA     := if (!"AREA"     %in% names(dist)) preds$AREA[match(cell, preds$cell)]   else AREA]
 
-  # 4b. Now select columns via `any_of()`
   dist <- dist |>
-    dplyr::select(any_of(c("x","y", "cell", "depth", "strat", "AREA_CODE",  "AREA", "SEASON", "EST_YEAR", "year", "age", "N", "division"))) |>
+    select(any_of(c("x", "y", "cell", "depth", "strat", "AREA_CODE", "AREA", "SEASON",
+                    "EST_YEAR", "year", "age", "N", "division"))) |>
     as.data.table()
 
-  # 5. Zero-filled cells
+  # Force zeros for unsampled cells
   no_dist <- anti_join(grid_xy, preds, by = c("x", "y", "cell")) |>
     sdmTMB::replicate_df("year", years) |>
     sdmTMB::replicate_df("age", ages) |>
     mutate(
-      N = 0,
-      age = as.double(age),
-      cell = as.double(cell),
+      N        = 0,
+      age      = as.double(age),
+      cell     = as.double(cell),
       division = 1
     ) |>
     as.data.table()
 
-  # 5a. If EST_YEAR is missing, attach from preds
-  if (!("EST_YEAR" %in% colnames(no_dist))) {
-    no_dist[, EST_YEAR := preds$EST_YEAR[match(cell, preds$cell)]]
-  }
-  if (!("SEASON" %in% colnames(no_dist))) {
-    no_dist[, SEASON := preds$SEASON[ match(cell, preds$cell) ]]
-  }
-  if (!("AREA" %in% colnames(no_dist))) {
-    no_dist[, AREA := preds$AREA[ match(cell, preds$cell) ]]
-  }
-  # 5b. Final select
+  no_dist[, EST_YEAR := if (!"EST_YEAR" %in% names(no_dist)) preds$EST_YEAR[match(cell, preds$cell)] else EST_YEAR]
+  no_dist[, SEASON   := if (!"SEASON"   %in% names(no_dist)) preds$SEASON[match(cell, preds$cell)] else SEASON]
+  no_dist[, AREA     := if (!"AREA"     %in% names(no_dist)) preds$AREA[match(cell, preds$cell)]   else AREA]
+
   no_dist <- no_dist |>
-    dplyr::select(any_of(c("x","y", "cell", "depth", "strat", "AREA_CODE",  "AREA", "SEASON", "EST_YEAR", "year", "age", "N", "division"))) |>
+    select(any_of(c("x", "y", "cell", "depth", "strat", "AREA_CODE", "AREA", "SEASON",
+                    "EST_YEAR", "year", "age", "N", "division"))) |>
     as.data.table()
 
-  # 6. Bind full distribution
+  # Combine filled and zero-filled distributions
   full_dist <- bind_rows(dist, no_dist)
 
-  # 7. Append to population object
-  pop_i$sp_N <- full_dist
-  pop_i$grid_xy <- grid_xy
-  pop_i$grid <- grid_stars
+  # Append distribution and grid to population object
+  pop_i$sp_N     <- full_dist
+  pop_i$grid_xy  <- grid_xy
+  pop_i$grid     <- grid_stars
 
-  # 8. Save
-  saveRDS(pop_i, file = file.path(dist.dat, sprintf("%s_%s_%03d_abund-dist.rds", species, season, i)))
-  message(sprintf("Finished pop %03d", i))
+  # Save updated object
+  saveRDS(pop_i, file = file.path(dist.dat, sprintf("%s_%s_%03d_abund-dist_ex.rds", species, season, i)))
+  message(sprintf("Finished population %03d", i))
 }
 
+#Save dist only
+for (i in 1:10) {
+  message(sprintf("Extracting SDM-only dist from pop %03d...", i))
+  # Load full population object
+  pop_i <- readRDS(here(dist.dat, sprintf("%s_%s_%03d_abund-dist_ex.rds", species, season, i)))
+  # Extract the full sp_N table
+  full_dist <- pop_i$sp_N
+  # Keep only predicted cells — i.e., rows where N > 0
+  dist <- full_dist[full_dist$N > 0, ]  # or dplyr::filter(N > 0)
+  # Save only the predicted portion
+  saveRDS(dist, here(dist.dat, sprintf("%s_%s_%03d_dist-only_ex.rds", species, season, i)))
+}
 
 
 #Comparing old vs new
-pop1 <- readRDS(here("data", "rds", "dists", "scup_fall_001_abund-dist.rds"))
-old_pop1 <- readRDS(here("data", "rds", "dists", "scup_fall_2_abund-dist.rds"))
-pop1$sp_N
-old_pop1[[1]]$pop$sp_N
+pop84 <- readRDS(here("data", "rds", "dists", "scup_fall_084_abund-dist.rds"))
+pop40 <- readRDS(here("data", "rds", "dists", "scup_fall_040_abund-dist.rds"))
+pop10 <- readRDS(here("data", "rds", "dists", "scup_fall_010_abund-dist.rds"))
+# old_pop1 <- readRDS(here("data", "rds", "dists", "scup_fall_2_abund-dist.rds"))
+# pop1$sp_N
+# old_pop1[[1]]$pop$sp_N
 
+sub <- pop10$sp_N
+sub <- sub |> filter(age <=2)
 
-
-pop1$sp_N |>
+sub |>
   ggplot() +
   geom_tile(aes(x, y, fill = N), width = 10, height = 10) +
   scale_fill_viridis_c() +
-  facet_wrap(~age) +
-  labs(title = "Pop 1: Spatial Distribution by Age", fill = "Abundance") +
-  theme_minimal()
+ facet_wrap(~age) +
+  labs(title = "Spatial Distribution by Age", fill = "Abundance",
+       x = "Longitude", y = "Latitude") +
+
+  theme_bw()
 
 
 
 
-#Save each dist only for each pop
-for (i in nsims) {
-  message(sprintf("Extracting distribution from population %03d...", i))
-    # Load the full population object
-  pop_i <- readRDS(here(dist.dat, sprintf("%s_%s_%03d_abund-dist.rds", species, season, i)))
-    # Extract distribution component
-  dist_i <- pop_i$sp_N
-    # Save as a separate file
-  saveRDS(dist_i, here(dist.dat, sprintf("%s_%s_%03d_dist-only.rds", species, season, i)))
-}
 
 
 
 
-dist_01 <- readRDS(here("data", "rds", "dists", "scup_fall_001_dist-only.rds"))
-dist_old <- readRDS(here("data", "rds", "dists", "scup_fall_2_sdm-dist-only.rds"))
-ggplot(dist_01) +
+
+dist_88 <- readRDS(here("data", "rds", "dists", "scup_fall_088_dist-only.rds"))
+#dist_old <- readRDS(here("data", "rds", "dists", "scup_fall_2_sdm-dist-only.rds"))
+ggplot(dist_88) +
   geom_tile(aes(x = x, y = y, fill = N), width = 10, height = 10) +
   scale_fill_viridis_c() +
-  facet_wrap(~age) +
+ # facet_wrap(~age) +
   labs(
     title = "Spatial Distribution by Age - pop 1 ",
     fill = "Abundance",
@@ -202,7 +207,19 @@ ggplot(dist_01) +
   ) +
   theme_minimal()
 
-########
+
+
+min(dist_01$N)
+unique(dist_01$strat)
+unique(dist_old[[1]]$strat)
+
+table(dist_01$strat)
+
+
+
+#
+#
+# #######
 # # extract strata for spatial prediction footprint for the given species
 # pred_strat <- unique(preds$strat)
 #
@@ -323,12 +340,16 @@ ggplot(dist_01) +
 #
 # # pop_nw <- map2(pop, dist_list_nw, ~append(.x, .y)) |>
 # #   map(~list(pop = .))
-## SAVE THE DATA ####
-#saveRDS(pop, here(dist.dat, str_c(species, season, length(nsims), "abund-dist.rds", sep = "_")))
-#saveRDS(dist, here(dist.dat, str_c(species, season, length(nsims), "sdm-dist-only.rds", sep = "_")))
-#saveRDS(dist_nowind, here(dist.dat, str_c(species, season, length(nsims), "sdm-dist_nowind-only.rds", sep = "_")))
-#saveRDS(pop_nw, here(dist.dat, str_c(species, season, length(nsims), "nowind-abund-dist.rds", sep = "_")))
+# # SAVE THE DATA ####
+# saveRDS(pop, here(dist.dat, str_c(species, season, length(nsims), "abund-dist.rds", sep = "_")))
+# saveRDS(dist, here(dist.dat, str_c(species, season, length(nsims), "sdm-dist-only.rds", sep = "_")))
+# saveRDS(dist_nowind, here(dist.dat, str_c(species, season, length(nsims), "sdm-dist_nowind-only.rds", sep = "_")))
+# saveRDS(pop_nw, here(dist.dat, str_c(species, season, length(nsims), "nowind-abund-dist.rds", sep = "_")))
+#
+#
+#
+#
 
 
-
+dist          <- map(ids, ~readRDS(here(dist.dat, sprintf("%s_%s_%s_dist-only.rds", species, season, .x))))
 

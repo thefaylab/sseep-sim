@@ -126,13 +126,24 @@ plots[[2]]
 plots[[100]]
 
 
+library(htmlwidgets)
+
+for (i in seq_along(plots)) {
+  saveWidget(
+    plots[[i]],
+    file = sprintf("simulation_%03d_surface.html", i),
+    selfcontained = TRUE
+  )
+}
+
+
 # Save each pop object individually
 for (i in seq_along(pop)) {
   saveRDS(
     pop[[i]],
-    file = file.path(pop.dat, sprintf("%s_pop_fall_%03d.rds", species, i))
+    file = file.path(pop.dat, sprintf("%s_pop_%03d.rds", species, i))
   )
-  message(sprintf("Saved %s_pop_fall_%03d.rds", species, i))
+  message(sprintf("Saved %s_pop_%03d.rds", species, i))
 }
 
 
@@ -142,8 +153,8 @@ sim_ids <- unique(Nage$sim)
 # Loop through and save each one
 for (i in sim_ids) {
   nage_i <- Nage |> filter(sim == i)
-  saveRDS(nage_i, file = file.path(Nage.dat, sprintf("scup_Nage_fall_%03d.rds", i)))
-  message(sprintf("Saved scup_Nage_fall_%03d.rds", i))
+  saveRDS(nage_i, file = file.path(Nage.dat, sprintf("scup_Nage_%03d.rds", i)))
+  message(sprintf("Saved scup_Nage_%03d.rds", i))
 }
 
 ## SAVE THE DATA ####

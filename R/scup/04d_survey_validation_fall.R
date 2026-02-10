@@ -61,7 +61,7 @@ grid_xy <- readRDS(here("data", "rds", "survey_grid_all_122024.rds")) |>
   drop_na()
 
 # as stars object
-grid_stars <- readRDS(here("data",  "survey_grid_all_stars_122024.rds")) |>
+grid_stars <- readRDS(here("data", "rds", "survey_grid_all_stars_122024.rds")) |>
   rename(depth = mean_2) |>
   dplyr::select(cell,depth, strat, AREA_CODE)
 
@@ -300,8 +300,8 @@ obs_catch_fall_area <- obs_catch_fall |>
 obs_strat <- unique(obs_catch_fall_area$STRATUM)
 
 
-# obs_resamps_old <- obs_catch_fall_area |>
-# rep_slice_sample(reps = 100, replace = TRUE, prop = 1) #resample with proportionality to the strata
+ obs_resamps_old <- obs_catch_fall_area |>
+ rep_slice_sample(reps = 100, replace = TRUE, prop = 1) #resample with proportionality to the strata
 #sampling spatially proportionally to each strata to preserve the space
 #saveRDS(obs_catch_fall_area,"obs_catch_fall_area.rds")
 #
@@ -323,7 +323,7 @@ obs_resamps_new <- obs_catch_fall_area %>%
 #----------------------------------------------------------
 
 # data wrangle
-obs_data <- obs_resamps_new |>
+obs_data <- obs_resamps_old |>
   mutate(TOWID = str_c(STRATUM, CRUISE6, STATION),
          TYPE = "Observed",
          EST_YEAR = case_when(
@@ -477,6 +477,14 @@ unique(depth_out$cell)
 table(depth_out$cell,depth_out$strat)
 
 
+sim_data <- data |>
+  dplyr::filter(strat %in% obs_strat) |>
+  mutate(TOWID = as.character(seq(set)),
+         TYPE = "Simulated") |>
+  dplyr::select(sim, TOWID, n, year, TYPE, depth) |>
+  rename(replicate = sim)
+
+test_data <- bind_rows(obs_data, sim_data)
 
 
 ###---------------------------------------------------------------------
@@ -491,7 +499,7 @@ sim_data2 <- data2 |>
   dplyr::select(sim, TOWID, n, year, TYPE, depth) |>
   rename(replicate = sim)
 
-test_data2 <- bind_rows(obs_catch, sim_data2)
+test_data2 <- bind_rows(obs_data, sim_data2)
 
 ### PROPORTION OF ZEROS ####
 # proportions of zeros in sim is very diff from proportion of zeros of real data - why is that?
@@ -518,6 +526,29 @@ ggplot(prop_zero) +
   geom_boxplot(aes(x = as.factor(year), y = prop, color = TYPE)) +
  labs(x = "Year", y = "Proportions of zeros (%)", subtitle = "Distribution of proportion of zeros \n Random Location Survey")
 
+
+zero_prop_plot <- prop_zero |>
+  ggplot() +
+  geom_boxplot(
+    aes(x = as.factor(year), y = prop, fill = TYPE)) +
+  ylim(20, NA) +
+  labs(
+    x = "Year",
+    y = "Proportions of zeros (%)",
+    subtitle = "Distribution of proportion of zeros"
+  ) +
+  scale_fill_manual(values = c("steelblue1","darkslateblue")) +  # teal + orange
+  theme(
+    axis.title.x   = element_text(size = 16),
+    axis.title.y   = element_text(size = 16),
+    axis.text.x    = element_text(size = 14),
+    axis.text.y    = element_text(size = 14),
+    plot.subtitle  = element_text(size = 16, face = "italic"),
+    legend.title   = element_text(size = 14),
+    legend.text    = element_text(size = 12)
+  )
+
+
 ggplot(prop_zero2) +
   geom_boxplot(aes(x = as.factor(year), y = prop, color = TYPE)) +
   labs(x = "Year", y = "Proportions of zeros (%)", subtitle = "Distribution of proportion of zeros \n Fixed location Survey")
@@ -533,7 +564,8 @@ ggplot(prop_zero2) +
 
 ggplot(test_data) +
   geom_boxplot(aes(x = as.factor(year), y = n, color= TYPE)) +
-  labs(x = "Year", y = "Frequency of catch rate occurrence", subtitle = "Distribution of catch rates \n Random Location Survey")
+  labs(x = "Year", y = "Frequency of catch rate occurrence",
+       subtitle = "Distribution of catch rates \n Random Location Survey")
 
 ggplot(test_data2) +
   geom_boxplot(aes(x = as.factor(year), y = n, color= TYPE)) +
@@ -549,6 +581,32 @@ catch_rate <- test_data |>
     ggplot() +
     geom_boxplot(aes(x = as.factor(year), y = mu, color= TYPE)) + ylim(0,NA) +
     labs(x = "Year", y = "Mean catch", subtitle = "Catch rate \n Random Location Survey"))
+
+
+catch_rate_plot <- catch_rate |>
+  ggplot() +
+  geom_boxplot(
+    aes(x = as.factor(year), y = mu, fill = TYPE)) +
+  ylim(0, NA) +
+  labs(
+    x = "Year",
+    y = "Mean catch",
+    subtitle = "Catch rate"
+  ) +
+  scale_fill_manual(values = c("steelblue1","darkslateblue")) +  # teal + orange
+  theme(
+    axis.title.x   = element_text(size = 16),
+    axis.title.y   = element_text(size = 16),
+    axis.text.x    = element_text(size = 14),
+    axis.text.y    = element_text(size = 14),
+    plot.subtitle  = element_text(size = 16, face = "italic"),
+    legend.title   = element_text(size = 14),
+    legend.text    = element_text(size = 12)
+  )
+
+
+plot <- zero_prop_plot + catch_rate_plot +
+  plot_layout(ncol = 1) & theme(legend.position = "right")
 
 catch_rate2 <- test_data2 |>
   group_by(replicate,TYPE, year) |>

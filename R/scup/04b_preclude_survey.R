@@ -10,7 +10,6 @@
 # Outputs: one survey and respective tow level data occurring outside of offshore wind energy areas only for each replicate of a simulated population and abundance
 #
 
-
 ### PACKAGES ####
 library(tidyverse)
 library(here)
@@ -36,7 +35,7 @@ chunks <- split(nsims, ceiling(nsims / chunk_size))
 
 
 # Set which chunk to run (1 to 5)
-chunk_id <- 1
+chunk_id <- 5
 this_chunk <- chunks[[chunk_id]]
 
 # Process each chunk
@@ -59,14 +58,14 @@ for (i in this_chunk) {
 
 #Compare
 survdat_precl_old <- readRDS(here(survdat, "scup_fall_2_sims_25_precl-surv-dat.rds"))
-survdat_precl_1 <- readRDS(here(survdat, "scup_fall_001_25_precl_survey.rds"))
+survdat_precl_84 <- readRDS(here(survdat, "scup_fall_084_25_precl_survey.rds"))
 
 survdat_precl_old[[1]]
-survdat_precl_1
+survdat_precl_84
 
 
 #Count
-s.pre <- survdat_precl_1
+s.pre <- survdat_precl_84
 
 # Count sets by sim, year
 tow_counts_pre <- s.pre |>

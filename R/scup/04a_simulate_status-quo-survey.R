@@ -13,9 +13,9 @@
 library(sdmTMB)
 library(SimSurvey)
 library(purrr)
-suppressPackageStartupMessages(library(tidyverse))
 library(data.table)
 library(here)
+suppressPackageStartupMessages(library(tidyverse))
 source(here("R/selectivity_fns.R"))
 set.seed(131)
 
@@ -49,7 +49,7 @@ resample_cells  <- TRUE
 
 
 # Set which chunk to run (1 to 5)
-chunk_id <- 2
+chunk_id <- 1
 this_chunk <- chunks[[chunk_id]]
 
 for (i in this_chunk) {
@@ -78,14 +78,14 @@ for (i in this_chunk) {
 
 #Compare
 survdat_sq_old <- readRDS(here(survdat, "scup_fall_2_sims_25_sq-surv-dat.rds"))
-survdat_sq_1 <- readRDS(here(survdat, "scup_fall_001_25_sq_survey.rds"))
+survdat_sq_84 <- readRDS(here(survdat, "scup_fall_084_25_sq_survey.rds"))
 
 survdat_sq_old[[1]]$setdet
-survdat_sq_1$setdet
+survdat_sq_84$setdet
 
 
 #Count
-sq <- survdat_sq_1$setdet
+sq <- survdat_sq_84$setdet
 
 # Count sets by sim, year
 tow_counts <- sq |>
@@ -105,6 +105,10 @@ avg_tows_per_year <- sq |>
   )
 
 print(avg_tows_per_year)
+
+
+
+survdat_sq <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_sq_survey.rds", species, season, .x))))
 
 
 # ### LOAD DATA ####

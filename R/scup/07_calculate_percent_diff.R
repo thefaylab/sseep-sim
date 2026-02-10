@@ -20,79 +20,153 @@ library(broom)
 
 
 ### DATA SET UP ####
-# data locations
-# sseep.analysis <- "C:/Users/amiller7/Documents/cinar-osse/sseep-analysis"
-# survdat <- here("data", "rds", "survdat")
-surv.prod <- here("data", "rds", "surv-prods")
+#Directories
+surv.prods <- here("data", "rds", "surv-prods")
 perform.metrics <- here("data", "rds", "perform-metrics")
 plots <- here("outputs", "plots")
 
-### name of species to be simulated
-species <- "scup"
-
-### season to be simulated
-season <- "fall"
-
-### ages simulated
+species <- "summerflounder"
+season <- "spring"
 ages <- 0:7
-
-### years projected
 years <- 1:15
-
-### number of simulations
-nsims <- 1:2
-
-### number of simulations
+nsims <- 1:100
 nsurveys <- 25
 
 ### LOAD DATA ####
 # relative abunance indices for each survey effort scenario created here("R", "05_calculate_rel_abundance.R")
 ### STATUS QUO
-# ihat_sq <- readRDS(here(surv.prods, str_c(species, season, "sq_rel-ihat.rds", sep = "_")))
-ihat_sq1 <- readRDS(here(surv.prods, str_c(species, season, "1pop-25sq_rel-ihat.rds", sep = "_")))
-
+ihat_sq_all <- readRDS(here(surv.prods, str_c(species, season, "100pops-25sims-sq_rel-ihat.rds", sep = "_")))
 
 ### PRECLUSION
-# ihat_precl <- readRDS(here(surv.prods, str_c(species, season, "precl_rel-ihat.rds", sep = "_")))
-ihat_precl1 <- readRDS(here(surv.prods, str_c(species, season, "1pop-25precl_rel-ihat.rds", sep = "_")))
+ihat_precl_all <- readRDS(here(surv.prods, str_c(species, season, "100pops-25sims-precl_rel-ihat.rds", sep = "_")))
 
 ### REALLOCATION
-# ihat_reall <- readRDS(here(surv.prods, str_c(species, season, "reall_rel-ihat.rds", sep = "_")))
-ihat_reall1 <- readRDS(here(surv.prods, str_c(species, season, "1pop-25reall_rel-ihat.rds", sep = "_")))
+ihat_reall_all <- readRDS(here(surv.prods, str_c(species, season, "100pops-25sims-reall_rel-ihat.rds", sep = "_")))
+
+### errors
+errors <- readRDS(here(perform.metrics, str_c(species, season,"25all-rel-error-100pops.rds", sep = "_")))
+
 
 ## CALCULATE ABSOLUTE PERCENT DIFFERENCES ####
 ### Status Quo vs Preclusion ####
-sq_precl_diff <- left_join(ihat_sq1, ihat_precl1, by = c("sim", "year")) |>
+sq_precl_diff <- left_join(ihat_sq_all, ihat_precl_all, by = c("pop","sim", "year")) |>
   janitor::clean_names() |>
-  group_by(sim, year) |>
+  group_by(pop,sim, year) |>
   mutate(perc_diff_mu =( abs(rel_ihat_x - rel_ihat_y) / rel_ihat_x)*100,
          perc_diff_cv =( abs(cv_x - cv_y) / cv_x)*100) |>
-  select(sim, year, perc_diff_mu, perc_diff_cv) |>
+  select(pop,sim, year, perc_diff_mu, perc_diff_cv) |>
   mutate(type = "SQ-Preclusion")
 
 
 
 ### Status Quo vs Reallocation ####
-sq_reall_diff <- left_join(ihat_sq1, ihat_reall1, by = c("sim", "year")) |>
+sq_reall_diff <- left_join(ihat_sq_all, ihat_reall_all, by = c("pop","sim", "year")) |>
   janitor::clean_names() |>
-  group_by(sim, year) |>
+  group_by(pop,sim, year) |>
   mutate(perc_diff_mu =( abs(rel_ihat_x - rel_ihat_y) / rel_ihat_x)*100,
          perc_diff_cv =( abs(cv_x - cv_y) / cv_x)*100) |>
-  select(sim, year, perc_diff_mu, perc_diff_cv) |>
+  select(pop,sim, year, perc_diff_mu, perc_diff_cv) |>
   mutate(type = "SQ-Reallocation")
 
 
 ## BIND ####
 diffs <- bind_rows(sq_precl_diff, sq_reall_diff)
 
-## PLOT DISTRIBUTION ####
-perc_diff_plot<- ggplot(diffs) +
-  geom_boxplot(aes(x = as.factor(year), y = perc_diff_mu, color = type)) +
-  labs(x = "Year", y = "Absolute percent difference", subtitle = "Distribution of the absolute percent difference between\nrelative abundance indices when compared to the status quo index")
 
-ggsave(str_c(species, season, "perc-diff-boxplot.png", sep = "_"),
-       plot = perc_diff_plot,
-       device = "png",
-    #   last_plot(),
-       here(plots),
-       width = 8, height = 6)
+
+
+## CALCULATE ABSOLUTE PERCENT DIFFERENCES for relative errors ####
+### Status Quo vs Preclusion ####
+sq_precl_relerr <- left_join(errors %>% filter(scenario == "Status Quo"),
+                             errors %>% filter(scenario == "Preclusion"),
+                             by = c("pop", "sim", "year")) |>
+  janitor::clean_names() |>
+  group_by(pop, sim, year) |>
+  mutate(diff_relerr = (rel_err_x - rel_err_y),
+         diff_abserr = abs(rel_err_x - rel_err_y)) |>
+  select(pop, sim, year, diff_relerr, diff_abserr) |>
+  mutate(type = "SQ-Preclusion")
+
+### Status Quo vs Reallocation ####
+sq_reall_relerr <- left_join(errors %>% filter(scenario == "Status Quo"),
+                             errors %>% filter(scenario == "Reallocation"),
+                             by = c("pop", "sim", "year")) |>
+  janitor::clean_names() |>
+  group_by(pop, sim, year) |>
+  mutate(diff_relerr = (rel_err_x - rel_err_y),
+         diff_abserr = abs(rel_err_x - rel_err_y)) |>
+  select(pop, sim, year, diff_relerr, diff_abserr) |>
+  mutate(type = "SQ-Reallocation")
+
+## BIND ####
+relerr_diffs <- bind_rows(sq_precl_relerr, sq_reall_relerr)
+
+relerr_diffs <- relerr_diffs %>%
+  mutate(period = ifelse(year <= 5, "1-5", "6-15"))
+relerr_diffs_late <- relerr_diffs %>%
+  filter(period == "6-15")
+
+ggplot(relerr_diffs, aes(x = type, y = diff_relerr, fill = type)) +
+  geom_boxplot(position = position_dodge(width = 0.75),
+               outlier.shape = NA, color = "black") +
+  facet_wrap(~ period) +
+  scale_fill_manual(values = c("SQ-Preclusion" = "goldenrod4",
+                               "SQ-Reallocation" = "steelblue4")) +
+  ylim(0,1) +
+  labs(title = "Difference in relative error among scenarios and time period",
+       subtitle = "Summerflounder - Spring",
+       x = "Scenario",
+       y = "Relative Error Difference",
+       fill = "Scenario") +
+  theme_bw() +
+  theme(text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 16, face = "bold"),
+        strip.text = element_text(size = 14),
+        legend.position = "none")
+
+
+ggsave(str_c(species, season, "relerr-diffs-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+
+
+
+ggplot(relerr_diffs_late, aes(x = factor(year), y = diff_relerr, fill = type)) +
+  geom_boxplot(position = position_dodge(width = 0.75),
+               outlier.shape = NA, color = "black") +
+  scale_fill_manual(values = c("SQ-Preclusion" = "goldenrod4",
+                               "SQ-Reallocation" = "steelblue4")) +
+  ylim(-1.5, 1.5) +
+  labs(title = "Difference in relative error among scenarios",
+       subtitle = "Summerflounder - Spring",
+       x = "Year",
+       y = "Relative error difference",
+       fill = "Scenario") +
+  theme_bw() +
+  theme(text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 16, face = "bold"),
+        legend.position = "bottom")
+
+ggsave(str_c(species, season, "relerr-diffs-late-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
+
+
+
+"Difference in absolute relative error among scenarios (Years 6-15)"
+ggplot(relerr_diffs_late, aes(x = factor(year), y = diff_abserr, fill = type)) +
+  geom_boxplot(position = position_dodge(width = 0.75),
+               outlier.shape = NA, color = "black") +
+  scale_fill_manual(values = c("SQ-Preclusion" = "goldenrod4",
+                               "SQ-Reallocation" = "steelblue4")) +
+  ylim(0, 1) +
+  labs(title = "Difference in absolute relative error among scenario",
+       subtitle = "Summerflounder - Spring",
+       x = "Year",
+       y = "Absolute relative error difference",
+       fill = "Scenario") +
+  theme_bw() +
+  theme(text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 16, face = "bold"),
+        legend.position = "bottom")
+
+ggsave(str_c(species, season, "absrelerr-diffs-late-boxplot.png", sep = "_"), device = "png", last_plot(), here(plots), width = 8, height = 6)
