@@ -9,7 +9,7 @@
 
 
 ## LOAD PACKAGES ####
-suppressPackageStartupMessages(library(tidyverse))
+library(tidyverse)
 library(here)
 library(sf)
 library(sdmTMB)
@@ -19,6 +19,9 @@ library(gridExtra)
 library(stringr)
 library(readr)
 library(dplyr)
+library(profvis)
+library(doParallel)
+library(foreach)
 # library(marmap)
 # library(raster)
 
@@ -45,14 +48,15 @@ strata <- readRDS(here("data", "rds", "active_strata.rds")) %>%
 
 #Catch
 ggplot(simdat_1_1) +
-  geom_point(aes(x = AVGDEPTH, y = N)) +
+  geom_point(aes(x = AVGDEPTH, y = n)) +
  # facet_wrap(~YEAR) +
   labs(x = "Depth (m)", y = "Catch (weight) per tow", subtitle = "Fall")
 
 
-mab_strata <- c(3450, 1050, 1610, 1090, 3410, 3380, 3020, 3460 ,3050, 3440, 3260, 3350, 8510, 1010,
-                1060, 3080, 3230, 3320, 3290, 8500, 1650, 1690, 7520, 1100, 3110, 3140, 3170, 1020,1740,1700,1730,3200,
-                1660,1620,1110,1070,1030,1750,1710,1670,1630,8520,1120,1080,1040,1760,1720,1680,1640,8530)
+mab_strata <- c(3450, 1050, 1610, 1090, 3410, 3380, 3020, 3460 ,3050, 3440, 3260, 3350, 8510,
+                1010, 1060, 3080, 3230, 3320, 3290, 8500, 1650, 1690, 7520, 1100, 3110, 3140,
+                3170, 1020, 1740, 1700, 1730, 3200, 1660, 1620, 1110, 1070, 1030, 1750, 1710,
+                1670, 1630, 8520, 1120, 1080, 1040, 1760, 1720, 1680, 1640, 8530)
 length(mab_strata)
 
 
@@ -66,34 +70,56 @@ simdat_filt <- simdat_1_1 |> filter(AVGDEPTH <= 75,  STRATUM %in% mab_strata) |>
 
 
 ggplot(simdat_filt) +
-  geom_point(aes(x = AVGDEPTH, y = N)) +
+  geom_point(aes(x = AVGDEPTH, y = n)) +
   # facet_wrap(~YEAR) +
   labs(x = "Depth (m)", y = "Catch (weight) per tow", subtitle = "Fall")
 
 
-simdat_mesh <- make_mesh(simdat_filt, xy_cols = c("X", "Y"), cutoff = 10)
-plot(simdat_mesh)
+# simdat_mesh <- make_mesh(simdat_filt, xy_cols = c("X", "Y"), cutoff = 20)
+# plot(simdat_mesh)
+
+# Pass arguments via '...' to fmesher::fm_mesh_2d_inla():
+mesh <- make_mesh(
+  simdat_filt, c("X", "Y"),
+  fmesher_func = fmesher::fm_mesh_2d_inla,
+  cutoff = 30, # minimum triangle edge length
+  max.edge = c(200, 400), # inner and outer max triangle lengths
+  offset = c(25, 100), # inner and outer border widths
+)
+plot(mesh)
 
 
+# cluster <- makeCluster(10)
+# registerDoParallel(cluster)
+#
+# foreach (i = c(1:10)) %dopar% {
+#
+# library(sdmTMB)
+# library(dplyr)
+# library(profvis)
+# library(doParallel)
+# library(foreach)
 
-simmod_tw <- sdmTMB(N ~ poly(AVGDEPTH,2) + YEAR - 1,
+profvis(
+  system.time(
+simmod_tw <- sdmTMB(n ~ poly(AVGDEPTH,2) + YEAR - 1,
                     data = simdat_filt,
-                    mesh = simdat_mesh,
+                    mesh = mesh,
                     family = tweedie(link = "log"),
                     spatial = "on",
                     time = "YEAR",
                     spatiotemporal = "IID",
                     control = sdmTMBcontrol(newton_loops = 1),
                     silent = FALSE)
+))
+
+#}
+
+#stopCluster(cluster) #to close the cores, this goes at the end after closing the function/loop
 
 sanity(simmod_tw)
 tidy(simmod_tw)
 tidy(simmod_tw, effects = "ran_pars")
-
-
-
-
-
 
 
 # fall_mod_tw <- readRDS(here("sdmtmb", "scup", "data","mods","comps", "m7d_fall_tw.rds"))
@@ -104,7 +130,7 @@ tidy(simmod_tw, effects = "ran_pars")
 #
 
 
-pops <- 1:10
+pops <- 45:100
 sims <- 1:25
 
 # Log file (CSV) to track success/failure + timing
@@ -148,10 +174,16 @@ for (pop in pops) {
       # if filtering leaves nothing, skip
       if (nrow(simdat_filt) == 0) stop("No rows after filtering (AVGDEPTH/STRATUM).")
 
-      simdat_mesh <- make_mesh(simdat_filt, xy_cols = c("X", "Y"), cutoff = 10)
+        simdat_mesh <- make_mesh(
+        simdat_filt, c("X", "Y"),
+        fmesher_func = fmesher::fm_mesh_2d_inla,
+        cutoff = 30, # minimum triangle edge length
+        max.edge = c(200, 400), # inner and outer max triangle lengths
+        offset = c(25, 100), # inner and outer border widths
+      )
 
       fit <- sdmTMB(
-        N ~ poly(AVGDEPTH, 2) + YEAR - 1,
+        n ~ poly(AVGDEPTH, 2) + YEAR - 1,
         data = simdat_filt,
         mesh = simdat_mesh,
         family = tweedie(link = "log"),
@@ -199,8 +231,8 @@ for (pop in pops) {
 #Check for 1 pop
 fit.dir <- "C:/Users/croman1/Desktop/UMassD/sseep-sim/data/rds/surv-prods/fit_out/scup"
 
-pop <- 1
-sim <- 1
+pop <- 45
+sim <- 5
 fit_path <- file.path(fit.dir, sprintf("sdmTMB_tw_sq_pop%03d_sim%02d.rds", pop, sim))
 
 fit <- readRDS(fit_path)
@@ -237,7 +269,7 @@ plot(as.integer(as.character(mb_index$YEAR)), mb_index$Ihat_mb, type = "l",
 
 
 #All pops x sims
-pops <- 1:10
+pops <- 51:100
 sims <- 1:25
 
 out_dir <- file.path(fit.dir, "mb_index_check")
@@ -280,24 +312,57 @@ files <- list.files(mb_dir,
 mb_all <- map_dfr(files, readRDS)
 
 
-ggplot(mb_all,
-       aes(x = as.factor(YEAR),
-           y = Ihat_mb,
-           fill = factor(pop))) +
-  geom_boxplot(
-    position = position_dodge(width = 0.75),
-    width = 0.6,
-    outlier.shape = NA
-  ) +
-  scale_fill_brewer(palette = "Set3") +
-  labs(
-    x = "Year",
-    y = "Model-based index",
-    fill = "Population"
-  ) +
-  theme_bw() +
-  theme(
-    legend.position = "top",
-    axis.text.x = element_text(angle = 45, hjust = 1)
+# ggplot(mb_all,
+#        aes(x = as.factor(YEAR),
+#            y = Ihat_mb,
+#            fill = factor(pop))) +
+#   geom_boxplot(
+#     position = position_dodge(width = 0.75),
+#     width = 0.6,
+#     outlier.shape = NA
+#   ) +
+#   scale_fill_brewer(palette = "Set3") +
+#   labs(
+#     x = "Year",
+#     y = "Model-based index",
+#     fill = "Population"
+#   ) +
+#   theme_bw() +
+#   theme(
+#     legend.position = "top",
+#     axis.text.x = element_text(angle = 45, hjust = 1)
+#   )
+
+
+library(ggplot2)
+
+ggplot(mb_all, aes(x = factor(YEAR), y = Ihat_mb)) +
+  geom_boxplot() +
+  labs(x = "Year", y = "Model-based index (ihat_mb)") +
+  theme_bw()
+
+
+library(dplyr)
+library(ggplot2)
+
+summ <- mb_all %>%
+  group_by(pop, YEAR) %>%
+  summarise(
+    med = median(Ihat_mb, na.rm = TRUE),
+    lo  = quantile(Ihat_mb, 0.25, na.rm = TRUE),
+    hi  = quantile(Ihat_mb, 0.75, na.rm = TRUE),
+    .groups = "drop"
   )
 
+ggplot(summ, aes(x = YEAR, group = pop)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.08) +
+  geom_line(aes(y = med), alpha = 0.25) +
+  labs(x = "Year", y = "Model-based index (ihat_mb)") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+ggplot(mb_all, aes(x = factor(YEAR), y = Ihat_mb)) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_y_log10() +
+  labs(x = "Year", y = "Model-based index (ihat_mb)") +
+  theme_bw()

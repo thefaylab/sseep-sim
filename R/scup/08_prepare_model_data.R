@@ -79,7 +79,7 @@ tb_sq <- map2_dfr(survdat_sq_ll, seq_along(survdat_sq_ll), function(surv, pop_nu
            DECDEG_LON = lon,
            AVGDEPTH = depth,
            STRATUM = strat) |>
-    select(set,sim,YEAR,STRATUM,AVGDEPTH,X,Y,DECDEG_LAT,DECDEG_LON,cell,AREA_CODE,N,scenario,pop,SEASON)
+    select(set,sim,YEAR,STRATUM,AVGDEPTH,X,Y,DECDEG_LAT,DECDEG_LON,cell,AREA_CODE,N,n,scenario,pop,SEASON)
 })
 
 
@@ -99,7 +99,7 @@ tb_precl <- map2_dfr(survdat_precl_ll, seq_along(survdat_precl_ll), function(sur
            DECDEG_LON = lon,
            AVGDEPTH = depth,
            STRATUM = strat) |>
-    select(set,sim,YEAR,STRATUM,AVGDEPTH,X,Y,DECDEG_LAT,DECDEG_LON,cell,AREA_CODE,N,scenario,pop,SEASON)
+    select(set,sim,YEAR,STRATUM,AVGDEPTH,X,Y,DECDEG_LAT,DECDEG_LON,cell,AREA_CODE,N,n,scenario,pop,SEASON)
 })
 
 
@@ -108,18 +108,18 @@ tb_precl <- map2_dfr(survdat_precl_ll, seq_along(survdat_precl_ll), function(sur
 #plot data
 tb_sq1 <- tb_sq |> filter(pop==1, sim==1)
 ggplot(tb_sq1, aes(x = X, y = Y)) +
-  geom_point(aes(color = N), size = 1.8) +
+  geom_point(aes(color = n), size = 1.8) +
   scale_color_viridis_c(option = "plasma", trans = "log1p") +  # log transform for better visual spread
   coord_fixed() +
   labs(title = "Abundance per Tow (N)",
        subtitle = "SQ Scenario",
-       color = "Abundance (N)") +
+       color = "Sample (n)") +
   theme_minimal()
 
 
 tb_precl1 <- tb_precl |> filter(pop==1, sim==1)
 ggplot(tb_precl1, aes(x = X, y = Y)) +
-  geom_point(aes(color = N), size = 1.8) +
+  geom_point(aes(color = n), size = 1.8) +
   scale_color_viridis_c(option = "plasma", trans = "log1p") +  # log transform for better visual spread
   coord_fixed() +
   labs(title = "Abundance per Tow (N)",
