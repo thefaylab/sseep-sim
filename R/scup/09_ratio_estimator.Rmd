@@ -27,6 +27,23 @@ For a given species, calculate a ratio estimator as a potential mitigation appro
 
 Outputs: abundance indices adjusted with the ratio for each population and simulation of the projection.
 
+# METHODOLOGY
+
+A ratio-based estimator was implemented to approximate abundance indices that would have been obtained under full survey coverage when sampling is restricted by offshore wind development. The approach uses information from baseline years, when the status quo survey and the preclusion scenario share the same spatial sampling design except for the exclusion of wind areas.
+
+Abundance indices were first calculated for the status quo and preclusion survey scenarios using a stratified mean estimator. For each simulated population and survey replicate, the number of unique tows was calculated within each stratum and year. Mean catch per tow was then estimated for each stratum and used to compute a stratified abundance index across the survey domain using area-based weights derived from the survey strata.
+
+The first five years of the simulation were used as a baseline period to estimate the relationship between observations from the full survey domain and observations from the restricted domain. During this period, stratum-level mean catches were calculated separately for the status quo survey and for the subset of observations outside wind areas. These values represent the abundance that would be observed with full coverage and with restricted coverage, respectively.
+
+For each population realization, simulation replicate, year, and stratum, an annual ratio was calculated as the ratio of the status quo stratum mean to the corresponding restricted-domain stratum mean. When the restricted-domain mean was zero or missing, the ratio was set to one to avoid undefined expansion factors. These ratios describe the expected relationship between observations obtained from the restricted survey domain and observations that would be obtained if sampling occurred across the full survey footprint.
+
+The ratio values were then applied to tow-level catches from the preclusion survey scenario. For each tow observation, the corresponding ratio was matched by population, simulation, year, and stratum. The observed catch was multiplied by this ratio to obtain an expanded catch value representing an estimate of what would have been observed under full survey coverage.
+
+These expanded catches were then used to calculate stratified abundance indices for the projection period (years 6–15). The same stratified mean estimator and area weights used for the status quo and preclusion scenarios were applied to the expanded observations. This produced an expanded abundance index that approximates the expected survey index under full spatial coverage despite sampling restrictions caused by offshore wind development.
+
+Finally, relative abundance indices were calculated by standardizing annual indices within each population and simulation replicate by the mean index across years. Variance estimates and coefficients of variation were derived from the stratified variance estimator, and confidence intervals were constructed on the log scale and back-transformed to the original scale.
+
+
 
 # PACKAGES
 
@@ -96,40 +113,32 @@ calculate the abundance index and relative abundance index for each of the scena
 
 ```{r}
 #extract the strata that were used to predict spatial distributions in sdmTMB
+
 strat <- map(dist, ~unique(.$strat))
 
-ihat_sq_all <- map2_dfr(survdat_sq, seq_along(survdat_sq), function(surv, pop_num) {
-  surv |> #it is already a data.table
-    as_tibble() |>
-    filter(strat %in% unlist(strat)) |>
-    group_by(sim, year, strat) |>
-    summarise(towct = length(unique(set)),
-              mu = sum(n)/towct,
-              var = ifelse(towct <2 , 0, var(n)),
-              .groups = "drop") |>
-    left_join(strata_wts, by = "strat") |>
-    mutate(W = Area_SqNm / survey_area,
-           wt_mu = W * mu,
-           wt_var = ifelse (towct < 2, 0, (W^2) * var / towct)) |>
-    group_by(sim, year) |>
-    summarise(stratmu  = sum(wt_mu),
-              stratvar = sum(wt_var),
-              cv = sqrt(stratvar) / stratmu,
-              .groups = "drop") |>
-    mutate(scenario = "Status Quo",
-           pop = pop_num)
-})
+source(here("R/stratmean_fn.R"))
 
+ihat_sq_all <- calc_stratmean(
+  surv_list = survdat_sq,
+  strata_wts = strata_wts,
+  survey_area = survey_area,
+  scenario_name = "Status Quo",
+  value_col = "n"
+)
 
 # Group by pop (and sim if needed) to compute rel_ihat within each population
 ihat_sq_all <- ihat_sq_all %>%
   group_by(pop, sim) %>%
-  mutate(rel_ihat = stratmu / mean(stratmu),
-         log_se = sqrt(log(1 + cv^2)),
-         log_lower = log(stratmu) - 1.96 * log_se,
-         log_upper = log(stratmu) + 1.96 * log_se,
-         ci_lower = exp(log_lower),
-         ci_upper = exp(log_upper)) %>%
+  mutate(
+    mean_ihat = mean(stratmu),
+    rel_ihat = stratmu / mean_ihat,
+    rel_var = stratvar / (mean_ihat^2),
+    rel_se = sqrt(rel_var),
+    rel_cv = rel_se / rel_ihat,
+    rel_log_se = sqrt(log(1 + rel_cv^2)),
+    rel_ci_lower = exp(log(rel_ihat) - 1.96 * rel_log_se),
+    rel_ci_upper = exp(log(rel_ihat) + 1.96 * rel_log_se)
+  ) %>%
   ungroup()
 
 ihat_sq_all |> 
@@ -155,7 +164,6 @@ sq_mu_y <- map2_dfr(survdat_sq, seq_along(survdat_sq), function(surv, pop_num) {
     )
 })
 
-
 sq_mu_y |> 
    dplyr::slice_head(n = 20) |>
   knitr::kable(format="latex", booktabs=TRUE, digits=2,
@@ -166,38 +174,30 @@ sq_mu_y |>
 ## Preclusion Survey
 
 ```{r}
-ihat_precl_all <- map2_dfr(survdat_precl, seq_along(survdat_precl), function(surv, pop_num) {
-  surv |> 
-    as_tibble() |>
-    filter(strat %in% unlist(strat)) |>
-    group_by(sim, year, strat) |>
-    summarise(towct = length(unique(set)),
-              mu = sum(n)/towct,
-              var = ifelse(towct <2 , 0, var(n)),
-              .groups = "drop") |>
-    left_join(strata_wts, by = "strat") |>
-    mutate(W = Area_SqNm / survey_area,
-           wt_mu = W * mu,
-           wt_var = ifelse (towct < 2, 0, (W^2) * var / towct)) |>
-    group_by(sim, year) |>
-    summarise(stratmu  = sum(wt_mu),
-              stratvar = sum(wt_var),
-              cv = sqrt(stratvar) / stratmu,
-              .groups = "drop") |>
-    mutate(scenario = "Preclusion",
-           pop = pop_num)
-})
+
+ihat_precl_all <- calc_stratmean(
+  surv_list = survdat_precl,
+  strata_wts = strata_wts,
+  survey_area = survey_area,
+  scenario_name = "Preclusion",
+  value_col = "n"
+)
 
 # Group by pop (and sim if needed) to compute rel_ihat within each population
 ihat_precl_all <- ihat_precl_all %>%
   group_by(pop, sim) %>%
-  mutate(rel_ihat = stratmu / mean(stratmu),
-         log_se = sqrt(log(1 + cv^2)),
-         log_lower = log(stratmu) - 1.96 * log_se,
-         log_upper = log(stratmu) + 1.96 * log_se,
-         ci_lower = exp(log_lower),
-         ci_upper = exp(log_upper)) %>%
+  mutate(
+    mean_ihat = mean(stratmu),
+    rel_ihat = stratmu / mean_ihat,
+    rel_var = stratvar / (mean_ihat^2),
+    rel_se = sqrt(rel_var),
+    rel_cv = rel_se / rel_ihat,
+    rel_log_se = sqrt(log(1 + rel_cv^2)),
+    rel_ci_lower = exp(log(rel_ihat) - 1.96 * rel_log_se),
+    rel_ci_upper = exp(log(rel_ihat) + 1.96 * rel_log_se)
+  ) %>%
   ungroup()
+
 
 ihat_precl_all |> 
   dplyr::slice_head(n = 20) |>
@@ -243,15 +243,15 @@ precl_mu_y |>
 
 
 ratio_tbl <- sq_mu_y |>
-  group_by(pop, sim, year) |>
-  summarise(mean_sq = mean(mu_sq, na.rm = TRUE), .groups = "drop") |>
-  left_join(
-    precl_mu_y |>
-      group_by(pop, sim, year) |>
-      summarise(mean_precl = mean(mu_precl, na.rm = TRUE), .groups = "drop"),
-    by = c("pop","sim","year")
+  left_join(precl_mu_y, by = c("pop", "sim", "year", "strat")) |>
+  mutate(
+    ratio_y = ifelse(is.na(mu_precl) | mu_precl == 0, 1, mu_sq / mu_precl)
   ) |>
-  mutate(ratio = ifelse(is.na(mean_precl) | mean_precl == 0, 1, mean_sq / mean_precl))
+  group_by(pop, sim, year ,strat) |>
+  summarise(
+    ratio = mean(ratio_y, na.rm = TRUE),
+    .groups = "drop"
+  )
 
 ratio_tbl |>
   dplyr::slice_head(n = 20) |>
@@ -266,43 +266,47 @@ ratio_tbl |>
 # Calculate expanded index
 
 ```{r}
-ihat_precl_exp_all <- map2_dfr(survdat_precl, seq_along(survdat_precl), function(surv, pop_num) {
-    surv |>
-    as_tibble() |>
-    filter(strat %in% unlist(strat), year %in% 6:15) |>
-    group_by(sim, year, strat) |>
-    summarise(towct = length(unique(set)),
-              mu = sum(n)/towct,
-              var = ifelse(towct < 2, 0, var(n)),
-             .groups = "drop") |>
-    mutate(pop = pop_num) |>
-    left_join(ratio_tbl |> select(pop, sim, year, ratio),
-              by = c("year","pop","sim")) |>
-    mutate(ratio = ifelse(is.na(ratio), 1, ratio),   
-      mu_exp = mu * ratio) |>
-    left_join(strata_wts, by = "strat") |>
-    mutate(W = Area_SqNm / survey_area,
-           wt_mu = W * mu_exp,
-           wt_var = ifelse (towct < 2, 0, (W^2) * var / towct)) |>
-    group_by(sim, year) |>
-    summarise(stratmu  = sum(wt_mu),
-              stratvar = sum(wt_var),
-              cv = sqrt(stratvar) / stratmu,
-              .groups = "drop") |>
-    mutate( scenario = "Preclusion_expanded",
-      pop = pop_num)
-})
 
+survdat_precl_ratio <- survdat_precl
+
+for (i in seq_along(survdat_precl_ratio)) {
+  survdat_precl_ratio[[i]] <- survdat_precl_ratio[[i]] |>
+    as_tibble() |>
+    mutate(pop = i) |>
+    left_join(
+      ratio_tbl,
+      by = c("pop", "sim", "year","strat")
+    ) |>
+    mutate(
+      ratio = ifelse(is.na(ratio), 1, ratio),
+      n_ratio = n * ratio
+    )
+}
+
+ihat_precl_exp_all <- calc_stratmean(
+  surv_list = survdat_precl_ratio,
+  strata_wts = strata_wts,
+  survey_area = survey_area,
+  scenario_name = "Preclusion_expanded",
+  value_col = "n_ratio",
+  years = 6:15
+)
 
 ihat_precl_exp_all <- ihat_precl_exp_all %>%
   group_by(pop, sim) %>%
-  mutate(rel_ihat = stratmu / mean(stratmu),
-         log_se = sqrt(log(1 + cv^2)),
-         log_lower = log(stratmu) - 1.96 * log_se,
-         log_upper = log(stratmu) + 1.96 * log_se,
-         ci_lower = exp(log_lower),
-         ci_upper = exp(log_upper)) %>%
+  mutate(
+    mean_ihat = mean(stratmu),
+    rel_ihat = stratmu / mean_ihat,
+    rel_var = stratvar / (mean_ihat^2),
+    rel_se = sqrt(rel_var),
+    rel_cv = rel_se / rel_ihat,
+    rel_log_se = sqrt(log(1 + rel_cv^2)),
+    rel_ci_lower = exp(log(rel_ihat) - 1.96 * rel_log_se),
+    rel_ci_upper = exp(log(rel_ihat) + 1.96 * rel_log_se)
+  ) %>%
   ungroup()
+
+
 
 ihat_precl_exp_all |>   
   dplyr::slice_head(n = 20) |>
@@ -311,6 +315,7 @@ ihat_precl_exp_all |>
   kableExtra::kable_styling(latex_options = c("hold_position", "scale_down"))
 
 ```
+
 
 
 
