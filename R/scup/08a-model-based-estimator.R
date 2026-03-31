@@ -1,5 +1,5 @@
 ### created: 07/21/2025
-### modified: 02/04/2026
+### modified: 03/17/2026
 
 
 # 01 - IMPORT SCUP DATA FROM SURVEY ####
@@ -22,6 +22,10 @@ library(dplyr)
 library(profvis)
 library(doParallel)
 library(foreach)
+library(future)
+library(future.apply)
+library(fmesher)
+library(TMB)
 # library(marmap)
 # library(raster)
 
@@ -60,78 +64,11 @@ mab_strata <- c(3450, 1050, 1610, 1090, 3410, 3380, 3020, 3460 ,3050, 3440, 3260
 length(mab_strata)
 
 
-
-
-#filter
-
-simdat_filt <- simdat_1_1 |> filter(AVGDEPTH <= 75,  STRATUM %in% mab_strata) |>
-  mutate(YEAR = as.factor(YEAR)) |>
-  group_by(set, sim, SEASON, YEAR)
-
-
-ggplot(simdat_filt) +
-  geom_point(aes(x = AVGDEPTH, y = n)) +
-  # facet_wrap(~YEAR) +
-  labs(x = "Depth (m)", y = "Catch (weight) per tow", subtitle = "Fall")
-
-
-# simdat_mesh <- make_mesh(simdat_filt, xy_cols = c("X", "Y"), cutoff = 20)
-# plot(simdat_mesh)
-
-# Pass arguments via '...' to fmesher::fm_mesh_2d_inla():
-mesh <- make_mesh(
-  simdat_filt, c("X", "Y"),
-  fmesher_func = fmesher::fm_mesh_2d_inla,
-  cutoff = 30, # minimum triangle edge length
-  max.edge = c(200, 400), # inner and outer max triangle lengths
-  offset = c(25, 100), # inner and outer border widths
-)
-plot(mesh)
-
-
-# cluster <- makeCluster(10)
-# registerDoParallel(cluster)
-#
-# foreach (i = c(1:10)) %dopar% {
-#
-# library(sdmTMB)
-# library(dplyr)
-# library(profvis)
-# library(doParallel)
-# library(foreach)
-
-profvis(
-  system.time(
-simmod_tw <- sdmTMB(n ~ poly(AVGDEPTH,2) + YEAR - 1,
-                    data = simdat_filt,
-                    mesh = mesh,
-                    family = tweedie(link = "log"),
-                    spatial = "on",
-                    time = "YEAR",
-                    spatiotemporal = "IID",
-                    control = sdmTMBcontrol(newton_loops = 1),
-                    silent = FALSE)
-))
-
-#}
-
-#stopCluster(cluster) #to close the cores, this goes at the end after closing the function/loop
-
-sanity(simmod_tw)
-tidy(simmod_tw)
-tidy(simmod_tw, effects = "ran_pars")
-
-
-# fall_mod_tw <- readRDS(here("sdmtmb", "scup", "data","mods","comps", "m7d_fall_tw.rds"))
-# tidy(fall_mod_tw)
-# tidy(fall_mod_tw, effects = "ran_pars")
-#
-#
-#
-
-
-pops <- 45:100
+pops <- 51:100 #run in batch of 50
 sims <- 1:25
+
+jobs <- expand.grid(pop = pops, sim = sims) |>
+  arrange(pop, sim)
 
 # Log file (CSV) to track success/failure + timing
 log_file <- file.path(fit.out.dir, "fit_log_sq_scup.csv")
@@ -139,116 +76,175 @@ if (!file.exists(log_file)) {
   writeLines("pop,sim,status,elapsed_sec,n_rows,message", con = log_file)
 }
 
-## Loop for multiple sims and pops ####
-for (pop in pops) {
-  for (sim in sims) {
+plan(multisession, workers = 12)
 
-    in_name  <- sprintf("sq_pop%03d_sim%02d.rds", pop, sim)
-    in_path  <- file.path(mods.data.dir, in_name)
+run_fit <- function(i, jobs, mods.data.dir, fit.out.dir, mab_strata) {
 
-    out_name <- sprintf("sdmTMB_tw_sq_pop%03d_sim%02d.rds", pop, sim)
-    out_path <- file.path(fit.out.dir, out_name)
+  pop <- jobs$pop[i]
+  sim <- jobs$sim[i]
 
-    # Skip if already fit
-    if (file.exists(out_path)) next
+  in_name  <- sprintf("sq_pop%03d_sim%02d.rds", pop, sim)
+  in_path  <- file.path(mods.data.dir, in_name)
 
-    # If input missing, log and continue
-    if (!file.exists(in_path)) {
-      cat(sprintf("%d,%d,missing_input,NA,NA,%s\n", pop, sim, shQuote(in_path)),
-          file = log_file, append = TRUE)
-      next
+  out_name <- sprintf("sdmTMB_tw_wind_sq_pop%03d_sim%02d.rds", pop, sim)
+  out_path <- file.path(fit.out.dir, out_name)
+
+  if (!file.exists(in_path)) {
+    return(sprintf("%d,%d,missing_input,NA,NA,%s",
+                   pop, sim, shQuote(in_path)))
+  }
+
+  start_time <- Sys.time()
+
+  res <- tryCatch({
+
+    simdat <- readRDS(in_path)
+
+    simdat_filt <- simdat |>
+      filter(AVGDEPTH <= 75, STRATUM %in% mab_strata) |>
+      mutate(
+        YEAR = as.factor(YEAR),
+        AREA_CODE = as.factor(AREA_CODE)
+      ) |>
+      group_by(set, sim, SEASON, YEAR)
+
+    if (nrow(simdat_filt) == 0) {
+      stop("No rows after filtering (AVGDEPTH/STRATUM).")
     }
 
-    start_time <- Sys.time()
+    TMB::openmp(n = 1)
 
-    # Wrap everything so one failure doesn't kill the whole run
-    res <- tryCatch({
+    simdat_mesh <- make_mesh(
+      simdat_filt, c("X", "Y"),
+      fmesher_func = fmesher::fm_mesh_2d_inla,
+      cutoff = 30,
+      max.edge = c(200, 400),
+      offset = c(25, 100)
+    )
 
-      simdat <- readRDS(in_path)
+    fit <- sdmTMB(
+      n ~ poly(AVGDEPTH, 2) + YEAR + AREA_CODE - 1,
+      data = simdat_filt,
+      mesh = simdat_mesh,
+      family = tweedie(link = "log"),
+      spatial = "on",
+      time = "YEAR",
+      spatiotemporal = "IID",
+      control = sdmTMBcontrol(newton_loops = 1),
+      silent = TRUE
+    )
 
-      simdat_filt <- simdat %>%
-        filter(AVGDEPTH <= 75, STRATUM %in% mab_strata) %>%
-        mutate(YEAR = as.factor(YEAR)) %>%
-        group_by(set, sim, SEASON, YEAR)
+    saveRDS(fit, out_path)
 
-      # if filtering leaves nothing, skip
-      if (nrow(simdat_filt) == 0) stop("No rows after filtering (AVGDEPTH/STRATUM).")
+    elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
+    n_rows <- nrow(simdat_filt)
 
-        simdat_mesh <- make_mesh(
-        simdat_filt, c("X", "Y"),
-        fmesher_func = fmesher::fm_mesh_2d_inla,
-        cutoff = 30, # minimum triangle edge length
-        max.edge = c(200, 400), # inner and outer max triangle lengths
-        offset = c(25, 100), # inner and outer border widths
-      )
+    out_msg <- sprintf("%d,%d,ok,%.3f,%d,%s",
+                       pop, sim, elapsed, n_rows, "saved")
 
-      fit <- sdmTMB(
-        n ~ poly(AVGDEPTH, 2) + YEAR - 1,
-        data = simdat_filt,
-        mesh = simdat_mesh,
-        family = tweedie(link = "log"),
-        spatial = "on",
-        time = "YEAR",
-        spatiotemporal = "IID",
-        control = sdmTMBcontrol(newton_loops = 1),
-        silent = TRUE
-      )
+    rm(fit, simdat, simdat_filt, simdat_mesh)
+    gc()
 
-      # Save fit object to disk
-      saveRDS(fit, out_path)
+    out_msg
 
-      elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
-      cat(sprintf("%d,%d,ok,%.3f,%d,%s\n",
-                  pop, sim, elapsed, nrow(simdat_filt), "saved"),
-          file = log_file, append = TRUE)
+  }, error = function(e) {
 
-      # drop fit from memory
-      rm(fit, simdat, simdat_filt, simdat_mesh)
-      gc()
+    elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
+    msg <- gsub(",", ";", conditionMessage(e))
 
-      TRUE
+    rm(list = intersect(c("simdat","simdat_filt","simdat_mesh"), ls()))
+    gc()
 
-    }, error = function(e) {
+    sprintf("%d,%d,error,%.3f,NA,%s",
+            pop, sim, elapsed, msg)
+  })
 
-      elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
-      msg <- gsub(",", ";", conditionMessage(e))
-      cat(sprintf("%d,%d,error,%.3f,NA,%s\n", pop, sim, elapsed, msg),
-          file = log_file, append = TRUE)
-
-      rm(list = intersect(c("simdat","simdat_filt","simdat_mesh"), ls()))
-      gc()
-
-      FALSE
-    })
-
-    #progress print
-    message(sprintf("pop %03d sim %02d -> %s", pop, sim, if (isTRUE(res)) "OK" else "FAIL"))
-  }
+  res
 }
 
+results_sq <- future_lapply(
+  X = seq_len(nrow(jobs)),
+  FUN = run_fit,
+  jobs = jobs,
+  mods.data.dir = mods.data.dir,
+  fit.out.dir = fit.out.dir,
+  mab_strata = mab_strata,
+  future.seed = TRUE
+)
+
+cat(
+  paste(unlist(results_sq), collapse = "\n"),
+  file = log_file,
+  append = TRUE,
+  sep = "\n"
+)
+
+
+plan(sequential)
+
+##-------------------------------------------------------------------
+###This is to check if there are missing model fits
+pops <- 1:50
+sims <- 1:25
+
+jobs <- expand.grid(pop = pops, sim = sims) |>
+  arrange(pop, sim)
+
+jobs$filename <- sprintf(
+  "sdmTMB_tw_wind_sq_pop%03d_sim%02d.rds",
+  jobs$pop,
+  jobs$sim
+)
+
+jobs$filepath <- file.path(fit.out.dir, jobs$filename)
+
+# only detect missing files
+jobs$needs_run <- !file.exists(jobs$filepath)
+
+jobs_to_run <- jobs[jobs$needs_run, ]
+
+nrow(jobs_to_run)
+head(jobs_to_run)
+
+jobs_to_run$filename
+
+
+plan(multisession, workers = 12)
+
+future.apply::future_lapply(
+  seq_len(nrow(jobs_to_run)),
+  function(i) run_fit(
+    i,
+    jobs_to_run,
+    mods.data.dir,
+    fit.out.dir,
+    mab_strata
+  )
+)
+##-------------------------------------------------------------------
 
 
 #Check for 1 pop
 fit.dir <- "C:/Users/croman1/Desktop/UMassD/sseep-sim/data/rds/surv-prods/fit_out/scup"
 
-pop <- 45
+pop <- 75
 sim <- 5
-fit_path <- file.path(fit.dir, sprintf("sdmTMB_tw_sq_pop%03d_sim%02d.rds", pop, sim))
+fit_path <- file.path(fit.dir, sprintf("sdmTMB_tw_wind_sq_pop%03d_sim%02d.rds", pop, sim))
 
 fit <- readRDS(fit_path)
-
-fit$formula
+fit
 
 #plug in grid
 sdmtmb.dir <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis/sdmtmb"
 fall_grid <- readRDS(file = here(sdmtmb.dir, "scup", "data", "scup_fall_grid_122024.rds"))
-grid_scup <- fall_grid |> dplyr::select(X, Y, mean_2, Cell_Area)  |>
+grid_scup <- fall_grid |> dplyr::select(X, Y, mean_2, Cell_Area, AREA_CODE)  |>
   mutate(AVGDEPTH = mean_2)
 
 yrs <- levels(fit$data$YEAR)
 
 #predict
-pred_grid <- tidyr::crossing(grid_scup, YEAR = factor(yrs, levels = yrs))
+pred_grid <- tidyr::crossing(grid_scup, YEAR = factor(yrs, levels = yrs)) |>
+  dplyr::mutate(AREA_CODE = factor(AREA_CODE))
 pred <- predict(fit, newdata = pred_grid, type = "response")
 head(pred)
 
@@ -256,60 +252,128 @@ pred_out <- pred
 
 
 #turn preds into model-based index
-mb_index <- pred_out |>
+mb_index_sq <- pred_out |>
   dplyr::group_by(YEAR) |>
   dplyr::summarise(
     Ihat_mb = sum(est * Cell_Area, na.rm = TRUE),
     .groups = "drop"
   )
-mb_index
+mb_index_sq
 
-plot(as.integer(as.character(mb_index$YEAR)), mb_index$Ihat_mb, type = "l",
+mb_index_sq <- pred_out |>
+  dplyr::group_by(pop, sim, YEAR) |>
+  dplyr::summarise(
+    Ihat_mb = sum(est * Cell_Area, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+plot(as.integer(as.character(mb_index_sq$YEAR)), mb_index_sq$Ihat_mb, type = "l",
      xlab = "Year", ylab = "Model-based index")
 
-
-#All pops x sims
-pops <- 51:100
+#-----------------------------------------------------------------
+#Predictions and index - All pops x sims
+pops <- 1:100
 sims <- 1:25
 
-out_dir <- file.path(fit.dir, "mb_index_check")
-dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+jobs <- expand.grid(pop = pops, sim = sims) |>
+  arrange(pop, sim)
 
-for (pop in pops) {
-  for (sim in sims) {
+out_dir <- file.path(fit.dir, "mb_index_sq_wind_check")
+#dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-    fit_path <- file.path(fit.dir, sprintf("sdmTMB_tw_sq_pop%03d_sim%02d.rds", pop, sim))
-    if (!file.exists(fit_path)) next
+plan(multisession, workers = 12)
+
+run_mb_index <- function(i, jobs, fit.dir, out_dir, grid_scup) {
+
+  pop <- jobs$pop[i]
+  sim <- jobs$sim[i]
+
+  fit_path <- file.path(fit.dir, sprintf("sdmTMB_tw_wind_sq_pop%03d_sim%02d.rds", pop, sim)) #sq or precl
+  if (!file.exists(fit_path)) {
+    message(sprintf("pop %03d sim %02d -> MISSING", pop, sim))
+    return(NULL)
+  }
+
+  out_path <- file.path(out_dir, sprintf("mb_index_sq_wind_pop%03d_sim%02d.rds", pop, sim))
+
+  res <- tryCatch({
 
     fit <- readRDS(fit_path)
 
     yrs <- levels(fit$data$YEAR)
 
-    pred_grid <- tidyr::crossing(grid_scup, YEAR = factor(yrs, levels = yrs))
-    pred_out  <- predict(fit, newdata = pred_grid, type = "response")
+    pred_grid <- tidyr::crossing(grid_scup, YEAR = factor(yrs, levels = yrs)) |>
+      dplyr::mutate(AREA_CODE = factor(AREA_CODE, levels = levels(fit$data$AREA_CODE)))
+    pred_out <- predict(fit, newdata = pred_grid, return_tmb_object = TRUE)
 
-    mb_index <- pred_out |>
-      group_by(YEAR) |>
-      summarise(Ihat_mb = sum(est * Cell_Area, na.rm = TRUE), .groups = "drop") |>
-      mutate(pop = pop, sim = sim)
 
-    saveRDS(mb_index, file.path(out_dir, sprintf("mb_index_pop%03d_sim%02d.rds", pop, sim)))
+    # mb_index_sq <- pred_out |>
+    #   dplyr::group_by(YEAR) |>
+    #   dplyr::summarise(
+    #     Ihat_mb = sum(est * Cell_Area, na.rm = TRUE),
+    #     .groups = "drop"
+    #   ) |>
+    #   dplyr::mutate(pop = pop, sim = sim)
+    mb_index_sq <- get_index(pred_out, area = pred_grid$Cell_Area, bias_correct = TRUE) |>
+      dplyr::mutate(pop = pop, sim = sim)
 
-    rm(fit, pred_grid, pred_out, mb_index)
+    saveRDS(mb_index_sq, out_path)
+
+    rm(fit, pred_grid, pred_out, mb_index_sq)
     gc()
-  }
+
+    out_path
+
+  }, error = function(e) {
+
+    rm(list = intersect(c("fit", "pred_grid", "pred_out", "mb_index_sq"), ls()))
+    gc()
+
+    NULL
+  })
+
+  res
 }
 
 
-#Plot
+results_mb <- future_lapply(
+  X = seq_len(nrow(jobs)),
+  FUN = run_mb_index,
+  jobs = jobs,
+  fit.dir = fit.dir,
+  out_dir = out_dir,
+  grid_scup = grid_scup,
+  future.seed = TRUE
+)
 
-mb_dir <- "C:/Users/croman1/Desktop/UMassD/sseep-sim/data/rds/surv-prods/fit_out/scup/mb_index_check"
+plan(sequential)
+
+
+#rel index --- change directory depending if its sq or precl
+
+mb_dir <- "C:/Users/croman1/Desktop/UMassD/sseep-sim/data/rds/surv-prods/fit_out/scup/mb_index_sq_wind_check"
 
 files <- list.files(mb_dir,
-                    pattern = "^mb_index_pop\\d{3}_sim\\d{2}\\.rds$",
+                    pattern = "^mb_index_sq_wind_pop\\d{3}_sim\\d{2}\\.rds$",
                     full.names = TRUE)
 
-mb_all <- map_dfr(files, readRDS)
+mb_all <- map_dfr(files, readRDS) |>
+  dplyr::mutate(YEAR = as.numeric(YEAR)) |>
+  dplyr::arrange(pop, sim, YEAR)
+
+
+
+mb_all <- mb_all %>%
+  group_by(pop, sim) %>%
+  mutate(
+    mean_ihat = mean(est),
+    rel_ihat_mb = est / mean_ihat
+  ) %>%
+  ungroup()
+
+
+model.est <- here("data", "rds", "surv-prods", "fit_out", "scup")
+saveRDS(mb_all, here(model.est, str_c(species, season, "model_based_wind_ihat.rds", sep = "_")))
 
 
 # ggplot(mb_all,
@@ -334,16 +398,13 @@ mb_all <- map_dfr(files, readRDS)
 #   )
 
 
-library(ggplot2)
 
-ggplot(mb_all, aes(x = factor(YEAR), y = Ihat_mb)) +
+ggplot(mb_all, aes(x = factor(YEAR), y = est)) +
   geom_boxplot() +
   labs(x = "Year", y = "Model-based index (ihat_mb)") +
   theme_bw()
 
 
-library(dplyr)
-library(ggplot2)
 
 summ <- mb_all %>%
   group_by(pop, YEAR) %>%

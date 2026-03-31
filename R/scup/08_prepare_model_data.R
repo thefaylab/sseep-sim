@@ -26,7 +26,14 @@ chunks <- split(nsims, ceiling(nsims / chunk_size))
 
 
 #Load surveys
-survdat_sq <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_sq_survey.rds", species, season, .x))))
+#survdat_sq <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_sq_survey.rds", species, season, .x))))
+survdat_sq <- map(ids, function(id) {
+  x <- readRDS(here(survdat, sprintf("%s_%s_%s_25_sq_survey.rds",
+                                     species, season, id)))
+  out <- x$setdet #loas only setdet data
+  rm(x); gc()
+  out
+})
 survdat_precl <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_precl_survey.rds", species, season, .x))))
 
 # area weights for each strata
