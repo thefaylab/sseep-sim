@@ -8,13 +8,13 @@ sseep.analysis <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis"
 dist.dat <- here("data", "rds", "dists")
 survdat <- here("data", "rds", "survdat")
 surv.prods <- here("data", "rds", "surv-prods")
-mods.data <- here("data", "rds", "surv-prods", "mods_data", "scup")
+mods.data <- here("data", "rds", "surv-prods", "mods_data", "sumflounder")
 plots <- here("outputs", "plots")
 
 
 
 # Parameters
-species   <- "scup"
+species   <- "summerflounder"
 season    <- "fall"
 ages      <- 0:7
 years     <- 1:15

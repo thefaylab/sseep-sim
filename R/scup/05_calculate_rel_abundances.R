@@ -13,6 +13,7 @@
 library(tidyverse)
 library(here)
 library(sdmTMB)
+library(SimSurvey)
 source(here("R", "sim_stratmean_fn.R"))
 
 
@@ -26,7 +27,7 @@ surv.prods <- here("data", "rds", "surv-prods")
 plots <- here("outputs", "plots")
 
 # Parameters
-species <- "summerflounder"
+species <- "scup"
 season  <- "fall"
 ages      <- 0:7
 years     <- 1:15
@@ -35,7 +36,11 @@ ids     <- sprintf("%03d", nsims)
 
 #Data
 pop <- map(ids, ~readRDS(here(dist.dat, sprintf("%s_%s_%s_abund-dist.rds", species, season, .x))))
-survdat_sq <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_sq_survey.rds", species, season, .x))))
+survdat_sq <- map(ids, function(id) {x <- readRDS(here(survdat, sprintf("%s_%s_%s_25_sq_survey.rds", species, season, id)))
+  out <- x$setdet #load only setdet data
+  rm(x); gc()
+  out
+})
 survdat_precl <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_precl_survey.rds", species, season, .x))))
 survdat_reall <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_reall_survey.rds", species, season, .x))))
 dist          <- map(ids, ~readRDS(here(dist.dat, sprintf("%s_%s_%s_dist-only.rds", species, season, .x))))
@@ -55,6 +60,13 @@ survey_area <- as.integer(sum(strata_wts$Area_SqNm))
 source(here("R/selectivity_fns.R"))
 q = force_sim_logistic(k = -0.66, x0 = -1.14, plot = TRUE, force_age = TRUE, age = 0, force_sel = 1)
 (selectivity_values <- q(ages))
+
+
+# q <- sim_logistic(k = 2, x0 = 2.5)
+# ages <- 0:7
+# selectivity_values <- q(ages)
+# names(selectivity_values) <- ages
+# selectivity_values
 
 
 ## True Abundance ####
@@ -98,14 +110,6 @@ ggplot(trueN_yr, aes(x = year, y = mean_N)) +
 
 
 
-# calculate the median relative abundance value and the upper and lower confidence intervals across simulations
-# true_med <- trueN |>
-#   group_by(year, scenario) |>
-#   summarise(med = median(rel_N),
-#             lower = quantile(rel_N, 0.025),
-#             upper = quantile(rel_N, 0.975)) |>
-#   mutate(type = "Relative True Abundance")
-
 
 ## Abundance Index ####
 # calculate the abundance index and relative abundance index for each of the scenarios
@@ -113,241 +117,223 @@ ggplot(trueN_yr, aes(x = year, y = mean_N)) +
 # extract the strata that were used to predict spatial distributions in sdmTMB
 strat <- map(dist, ~unique(.$strat))
 
-### Status Quo ####
-# ihat_sq <- map(survdat_sq, ~as_tibble(.$setdet) |> filter(strat %in% strat) |> sim_stratmean(strata_wts = strata_wts, survey_area = survey_area) |>
-#               mutate(rel_ihat = stratmu/mean(stratmu),
-#                      scenario = "Status Quo")) |>
-#   map_dfr(~pluck(.), .id = "sim")
+source(here("R/stratmean_fn.R"))
 
-#FOR ONE REALIZATION OF THE POPULATION
-# ihat_sq1 <- survdat_sq[[1]]$setdet |> as_tibble() |>
-#   filter(strat %in% strat) |>
-#   group_by(sim, year, strat) |>
-#   summarise(towct = length(unique(set)),
-#             mu = sum(n)/towct,
-#             var = ifelse(towct == 1, 0,
-#                          sum((n - mu)^2)/(towct - 1))) |>
-#   left_join(strata_wts, by = "strat") |>
-#   mutate(wt_mu = Area_SqNm * mu,
-#          wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm))) |>
-#   ungroup() |>
-#   group_by(sim, year) |>
-#   summarise(stratmu = (sum(wt_mu)) / survey_area, # part two of the stratified mean formula
-#             stratvar = sum(wt_var),
-#             cv = sqrt(stratvar)/stratmu) |>
-#   mutate(rel_ihat = stratmu/mean(stratmu),
-#          scenario = "Status Quo")
+stratmean_sq_all <- calc_stratmean(
+  surv_list = survdat_sq,
+  strata_wts = strata_wts,
+  survey_area = survey_area,
+  scenario_name = "Status Quo",
+  value_col = "n"
+)
 
-#FOR ALL THE REALIZATIONS OF THE POPULATION
-ihat_sq_all <- map2_dfr(survdat_sq, seq_along(survdat_sq), function(surv, pop_num) {
-  surv$setdet |>
-    as_tibble() |>
-    filter(strat %in% unlist(strat)) |>
-    group_by(sim, year, strat) |>
-    summarise(towct = length(unique(set)),
-              mu = sum(n)/towct,
-              var = ifelse(towct == 1, 0,
-                           sum((n - mu)^2)/(towct - 1)),
-              .groups = "drop") |>
-    left_join(strata_wts, by = "strat") |>
-    mutate(wt_mu = Area_SqNm * mu,
-           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm))) |>
-    group_by(sim, year) |>
-    summarise(stratmu = (sum(wt_mu)) / survey_area,
-              stratvar = sum(wt_var),
-              cv = sqrt(stratvar)/stratmu,
-              .groups = "drop") |>
-    mutate(scenario = "Status Quo",
-           pop = pop_num)})
+# Group by pop (and sim if needed) to compute rel_ihat within each population
+ihat_sq_all <- stratmean_sq_all |>
+  group_by(pop, sim) |> #Calculations are done within each population realization (pop) and survey replicate (sim)
+  mutate(
+    n_years = n_distinct(year), #counts the number of unique years - needed to compute cariance of the mean across years
+    mean_ihat = mean(stratmu, na.rm = TRUE), #average index across years
 
-# group by pop and sims to compute rel_ihat within each population. If it get computed in the previous step, all populations get combined so if I compute rel_ihat as stratmu / mean(stratmu) across all rows, it end up dividing by a different (larger) mean value.
-ihat_sq_all <- ihat_sq_all |>
-  group_by(pop, sim) |>
-  mutate(rel_ihat = stratmu / mean(stratmu),
-         log_se = sqrt(log(1 + cv^2)),
-         log_lower = log(stratmu) - 1.96 * log_se,
-         log_upper = log(stratmu) + 1.96 * log_se,
-         ci_lower = exp(log_lower),
-         ci_upper = exp(log_upper)) |>
+    # variance of the mean over years - assuming years are independent
+    var_mean_ihat = sum(stratvar, na.rm = TRUE) / (n_years^2),
+
+    # covariance between each annual stratified mean and the mean over years
+    cov_stratmu_mean = stratvar / n_years,
+
+    # relative abundance index - standardizes each year relative to the average
+    rel_ihat = stratmu / mean_ihat,
+
+    # delta-method variance for rel_ihat = stratmu / mean_ihat (Lohr, 2019 Ch9)
+    rel_var =
+      (stratvar / (mean_ihat^2)) +
+      ((stratmu^2) * var_mean_ihat / (mean_ihat^4)) -
+      (2 * stratmu * cov_stratmu_mean / (mean_ihat^3)),
+
+    rel_se = sqrt(pmax(rel_var,0)), #standard error of estimator
+    rel_cv = rel_se / rel_ihat, #coefficient of variation
+
+    rel_log_sd = sqrt(log(1 + rel_cv^2)), #convert the CV into the lognormal SD parameter
+    rel_log_mean = log(rel_ihat) - 0.5 * rel_log_sd^2,
+
+    rel_ci_lower = qlnorm(0.025, meanlog = rel_log_mean, sdlog = rel_log_sd),
+    rel_ci_upper = qlnorm(0.975, meanlog = rel_log_mean, sdlog = rel_log_sd)
+  ) %>%
   ungroup()
+
 
 
 ### Precluded Survey ####
-### #FOR ONE REALIZATION OF THE POPULATION
-# ihat_precl <- map(survdat_precl, ~as_tibble(.) |> filter(strat %in% strat) |> sim_stratmean(strata_wts = strata_wts, survey_area = survey_area) |>
-#                  mutate(rel_ihat = stratmu/mean(stratmu),
-#                         scenario = "Preclusion")) |>
-#   map_dfr(~pluck(.), .id = "sim")
+min_tows <- 3
 
-# ihat_precl1 <- survdat_precl[[1]] |> as_tibble() |>
-#   filter(strat %in% strat) |>
-#   group_by(sim, year, strat) |>
-#   summarise(towct = length(unique(set)),
-#             mu = sum(n)/towct,
-#             var = ifelse(towct == 1, 0,
-#                          sum((n - mu)^2)/(towct - 1))) |>
-#   left_join(strata_wts, by = "strat") |>
-#   mutate(wt_mu = Area_SqNm * mu,
-#          wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm))) |>
-#   ungroup() |>
-#   group_by(sim, year) |>
-#   summarise(stratmu = (sum(wt_mu)) / survey_area, # part two of the stratified mean formula
-#             stratvar = sum(wt_var),
-#             cv = sqrt(stratvar)/stratmu) |>
-#   mutate(rel_ihat = stratmu/mean(stratmu),
-#          scenario = "Preclusion")
+# 1. find strata that actually have enough tows
+valid_strata <- map_dfr(survdat_precl, ~as_tibble(.x)) |>
+  filter(year %in% 6:15) |>
+  group_by(strat) |>
+  summarise(towct = n_distinct(set), .groups = "drop") |>
+  filter(towct >= min_tows) |>
+  pull(strat)
 
-#FOR ALL THE REALIZATIONS OF THE POPULATION
-ihat_precl_all <- map2_dfr(survdat_precl, seq_along(survdat_precl), function(surv, pop_num) {
-  surv |> #it is already a data.table
-    as_tibble() |>
-    filter(strat %in% unlist(strat)) |>
-    group_by(sim, year, strat) |>
-    summarise(towct = length(unique(set)),
-              mu = sum(n)/towct,
-              var = ifelse(towct == 1, 0,
-                           sum((n - mu)^2)/(towct - 1)),
-              .groups = "drop") |>
-    left_join(strata_wts, by = "strat") |>
-    mutate(wt_mu = Area_SqNm * mu,
-           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm))) |>
-    group_by(sim, year) |>
-    summarise(stratmu = (sum(wt_mu)) / survey_area,
-              stratvar = sum(wt_var),
-              cv = sqrt(stratvar)/stratmu,
-              .groups = "drop") |>
-    mutate(scenario = "Preclusion",
-           pop = pop_num)
-})
+# 2. filter survey data
+survdat_precl_filt <- map(survdat_precl, ~
+                            as_tibble(.x) |>
+                            filter(strat %in% valid_strata)
+)
 
-# Now group by pop (and sim if needed) to compute rel_ihat within each population
-ihat_precl_all <- ihat_precl_all %>%
-  group_by(pop, sim) %>%
-  mutate(rel_ihat = stratmu / mean(stratmu),
-         log_se = sqrt(log(1 + cv^2)),
-         log_lower = log(stratmu) - 1.96 * log_se,
-         log_upper = log(stratmu) + 1.96 * log_se,
-         ci_lower = exp(log_lower),
-         ci_upper = exp(log_upper)) %>%
+# 3. filter weights + recompute area
+strata_wts_filt <- strata_wts |>
+  filter(strat %in% valid_strata)
+
+survey_area_filt <- sum(strata_wts_filt$Area_SqNm, na.rm = TRUE)
+
+
+# ---- years 1:5: same domain as status quo ----
+survdat_precl_y1_5 <- map(survdat_precl, ~
+                            as_tibble(.x) |>
+                            filter(year %in% 1:5)
+)
+
+stratmean_precl_y1_5 <- calc_stratmean(
+  surv_list     = survdat_precl_y1_5,
+  strata_wts    = strata_wts,
+  survey_area   = survey_area,
+  scenario_name = "Preclusion",
+  value_col     = "n",
+  years         = 1:5
+)
+
+# ---- years 6:15: filter to strata still present under preclusion ----
+survdat_precl_y6_15 <- map(survdat_precl, ~
+                             as_tibble(.x) |>
+                             filter(year %in% 6:15)
+)
+
+stratmean_precl_y6_15 <- calc_stratmean(
+  surv_list     = survdat_precl_y6_15,
+  strata_wts    = strata_wts_filt,
+  survey_area   = survey_area_filt,
+  scenario_name = "Preclusion",
+  value_col     = "n",
+  years         = 6:15
+)
+
+# ---- merge ----
+stratmean_precl_all <- bind_rows(stratmean_precl_y1_5, stratmean_precl_y6_15) |>
+  arrange(pop, sim, year)
+
+
+# Group to compute rel_ihat
+ihat_precl_all <- stratmean_precl_all |>
+  group_by(pop, sim) |>
+  mutate(
+    n_years = n_distinct(year),
+    mean_ihat = mean(stratmu, na.rm = TRUE),
+    var_mean_ihat = sum(stratvar, na.rm = TRUE) / (n_years^2),
+    cov_stratmu_mean = stratvar / n_years,
+    rel_ihat = stratmu / mean_ihat,
+    rel_var =
+      (stratvar / (mean_ihat^2)) +
+      ((stratmu^2) * var_mean_ihat / (mean_ihat^4)) -
+      (2 * stratmu * cov_stratmu_mean / (mean_ihat^3)),
+    rel_se = sqrt(pmax(rel_var,0)),
+    rel_cv = rel_se / rel_ihat,
+    rel_log_sd = sqrt(log(1 + rel_cv^2)),
+    rel_log_mean = log(rel_ihat) - 0.5 * rel_log_sd^2,
+    rel_ci_lower = qlnorm(0.025, meanlog = rel_log_mean, sdlog = rel_log_sd),
+    rel_ci_upper = qlnorm(0.975, meanlog = rel_log_mean, sdlog = rel_log_sd)
+  ) %>%
   ungroup()
 
 
+### Reallocation Survey ####
+min_tows <- 3
 
-### Reallocated Survey ####
-# ihat_reall <- map(survdat_reall, ~as_tibble(.x) |> filter(strat %in% strat) |> sim_stratmean(strata_wts = strata_wts, survey_area = survey_area) |>
-#                  mutate(rel_ihat = stratmu/mean(stratmu),
-#                         scenario = "Reallocation")) |>
-#   map_dfr(~pluck(.), .id = "sim")
-#
+# 1. find strata that actually have enough tows
+valid_strata_r <- map_dfr(survdat_reall, ~as_tibble(.x)) |>
+  filter(year %in% 6:15) |>
+  group_by(strat) |>
+  summarise(towct = n_distinct(set), .groups = "drop") |>
+  filter(towct >= min_tows) |>
+  pull(strat)
 
-#FOR ONE REALIZATION OF THE POPULATION
-# ihat_reall1 <- survdat_reall[[1]] |> as_tibble() |>
-#   filter(strat %in% strat) |>
-#   group_by(sim, year, strat) |>
-#   summarise(towct = length(unique(set)),
-#             mu = sum(n)/towct,
-#             var = ifelse(towct == 1, 0,
-#                          sum((n - mu)^2)/(towct - 1))) |>
-#   left_join(strata_wts, by = "strat") |>
-#   mutate(wt_mu = Area_SqNm * mu,
-#          wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm))) |>
-#   ungroup() |>
-#   group_by(sim, year) |>
-#   summarise(stratmu = (sum(wt_mu)) / survey_area, # part two of the stratified mean formula
-#             stratvar = sum(wt_var),
-#             cv = sqrt(stratvar)/stratmu) |>
-#   mutate(rel_ihat = stratmu/mean(stratmu),
-#          scenario = "Reallocation")
+# 2. filter survey data
+survdat_reall_filt <- map(survdat_reall, ~
+                            as_tibble(.x) |>
+                            filter(strat %in% valid_strata_r)
+)
 
-#FOR ALL THE REALIZATIONS OF THE POPULATION
-ihat_reall_all <- map2_dfr(survdat_reall, seq_along(survdat_reall), function(surv, pop_num) {
-  surv |> #it is already a data.table
-    as_tibble() |>
-    filter(strat %in% unlist(strat)) |>
-    group_by(sim, year, strat) |>
-    summarise(towct = length(unique(set)),
-              mu = sum(n)/towct,
-              var = ifelse(towct == 1, 0,
-                           sum((n - mu)^2)/(towct - 1)),
-              .groups = "drop") |>
-    left_join(strata_wts, by = "strat") |>
-    mutate(wt_mu = Area_SqNm * mu,
-           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm))) |>
-    group_by(sim, year) |>
-    summarise(stratmu = (sum(wt_mu)) / survey_area,
-              stratvar = sum(wt_var),
-              cv = sqrt(stratvar)/stratmu,
-              .groups = "drop") |>
-    mutate(scenario = "Reallocation",
-           pop = pop_num)})
+# 3. filter weights + recompute area
+strata_wts_filt_r <- strata_wts |>
+  filter(strat %in% valid_strata_r)
 
-# Now group by pop (and sim if needed) to compute rel_ihat within each population
-ihat_reall_all <- ihat_reall_all |>
+survey_area_filt_r <- sum(strata_wts_filt_r$Area_SqNm, na.rm = TRUE)
+
+
+# ---- years 1:5: same domain as status quo ----
+survdat_reall_y1_5 <- map(survdat_reall, ~
+                            as_tibble(.x) |>
+                            filter(year %in% 1:5)
+)
+
+stratmean_reall_y1_5 <- calc_stratmean(
+  surv_list     = survdat_reall_y1_5,
+  strata_wts    = strata_wts,
+  survey_area   = survey_area,
+  scenario_name = "Reallocation",
+  value_col     = "n",
+  years         = 1:5
+)
+
+# ---- years 6:15: filter to strata still present under preclusion ----
+survdat_reall_y6_15 <- map(survdat_reall, ~
+                             as_tibble(.x) |>
+                             filter(year %in% 6:15)
+)
+
+stratmean_reall_y6_15 <- calc_stratmean(
+  surv_list     = survdat_reall_y6_15,
+  strata_wts    = strata_wts_filt_r,
+  survey_area   = survey_area_filt_r,
+  scenario_name = "Reallocation",
+  value_col     = "n",
+  years         = 6:15
+)
+
+# ---- merge ----
+stratmean_reall_all <- bind_rows(stratmean_reall_y1_5, stratmean_reall_y6_15) |>
+  arrange(pop, sim, year)
+
+
+# Group to compute rel_ihat
+ihat_reall_all <- stratmean_reall_all |>
   group_by(pop, sim) |>
-  mutate(rel_ihat = stratmu / mean(stratmu),
-         log_se = sqrt(log(1 + cv^2)),
-         log_lower = log(stratmu) - 1.96 * log_se,
-         log_upper = log(stratmu) + 1.96 * log_se,
-         ci_lower = exp(log_lower),
-         ci_upper = exp(log_upper)) |>
+  mutate(
+    n_years = n_distinct(year),
+    mean_ihat = mean(stratmu, na.rm = TRUE),
+    var_mean_ihat = sum(stratvar, na.rm = TRUE) / (n_years^2),
+    cov_stratmu_mean = stratvar / n_years,
+    rel_ihat = stratmu / mean_ihat,
+    rel_var =
+      (stratvar / (mean_ihat^2)) +
+      ((stratmu^2) * var_mean_ihat / (mean_ihat^4)) -
+      (2 * stratmu * cov_stratmu_mean / (mean_ihat^3)),
+    rel_se = sqrt(pmax(rel_var,0)),
+    rel_cv = rel_se / rel_ihat,
+    rel_log_sd = sqrt(log(1 + rel_cv^2)),
+    rel_log_mean = log(rel_ihat) - 0.5 * rel_log_sd^2,
+    rel_ci_lower = qlnorm(0.025, meanlog = rel_log_mean, sdlog = rel_log_sd),
+    rel_ci_upper = qlnorm(0.975, meanlog = rel_log_mean, sdlog = rel_log_sd)
+  ) %>%
   ungroup()
 
 
 ### Bind Indices ####
 # bind all three scenario dataframes for efficient plotting and statistic calculation
-#indices25 <- bind_rows(ihat_sq1, ihat_precl1, ihat_reall1)
 indices <- bind_rows(ihat_sq_all,ihat_precl_all,ihat_reall_all)
 
 
-#indices_old<-readRDS(here(surv.prods, str_c(species, season, "all-ihat-25survs.rds", sep = "_")))
-#scup_fall_all-ihat_1pop-25survs
-
-
-# calculate the median relative abundance indices and the upper and lower confidence intervals across simulations and scenarios
-# indices_med <- indices |>
-#   group_by(year, scenario) |>
-#   summarise(med = median(rel_ihat),
-#             lower = quantile(rel_ihat, 0.025),
-#             upper = quantile(rel_ihat, 0.975)) |>
-#   mutate(type = "Estimated Relative Abundance Index")
-
-
-## Plots ####
-
-pops_to_plot <- c(2,5,88)
-sim_to_plot <- c(1,100)
-
-trueN_sub     <- filter(trueN, pop %in% pops_to_plot)
-indices_sub <- filter(indices, pop %in% pops_to_plot)
-indices_sub_sim <- filter(indices, pop %in% pops_to_plot, sim %in% sim_to_plot)
-trueN_yr_pop_sub <- filter(trueN_yr_pop, pop %in% pops_to_plot)
-
-
-
-RelAbundPlot <- ggplot() +
-  aes(x = year) +
-  geom_line(data = trueN_sub, aes(y = rel_N, color = scenario), linewidth = 1) +
-  geom_point(data = indices_sub, aes(y = rel_ihat, color = fct_inorder(scenario)),
-             position = position_dodge(width = 0.5)) +
-  labs(x = "Year",
-       y = "Relative Abundance", title = "Relative abundance of scup", subtitle = "Fall") +
-  facet_wrap(~ pop, scales = "free_y", ncol = 1) +
-  ylim(0, NA) +
-  theme(legend.position = "bottom", legend.title =element_blank(),
-        text = element_text(size = 13),  legend.text = element_text(size = 11))
-
-
-
-ggsave(str_c(species, season, "RelAbundPlot.png", sep = "_"),
-       plot = RelAbundPlot,
-       device = "png",
-       # last_plot(),
-       here(plots),
-       width = 8, height = 6)
-
 ## SAVE THE DATA ####
-saveRDS(trueN, here(surv.prods, str_c(species, season, "rel-TrueN-100pops.rds", sep = "_")))
-saveRDS(indices, here(surv.prods, str_c(species, season, "all-ihat-25survs-100pops.rds", sep = "_")))
+saveRDS(trueN, here(surv.prods, str_c(species, season, "TrueN.rds", sep = "_")))
+saveRDS(indices, here(surv.prods, str_c(species, season, "all-ihat-surveys.rds", sep = "_")))
 
 saveRDS(ihat_sq_all, here(surv.prods, str_c(species, season, "100pops-25sims-sq_rel-ihat.rds", sep = "_")))
 saveRDS(ihat_precl_all, here(surv.prods, str_c(species, season, "100pops-25sims-precl_rel-ihat.rds", sep = "_")))
@@ -355,264 +341,71 @@ saveRDS(ihat_reall_all, here(surv.prods, str_c(species, season, "100pops-25sims-
 
 
 
-ggplot() +
-  aes(x = year) +
-  geom_line(data = trueN_sub, aes(y = rel_N, color = scenario), linewidth = 1) +
-  geom_point(data = indices_sub,
-             aes(y = rel_ihat, color = fct_inorder(scenario)),
-             position = position_dodge(width = 0.5),
-             alpha = 0.4, size = 1.5) +
-  labs(x = "Year", y = "Relative Abundance",
-    title = "Relative Abundance of Scup", subtitle = "Fall") +
-  facet_wrap(~ pop, scales = "free_y", ncol = 1) +
-  scale_color_manual(values = c("Status Quo" = "salmon",
-                                "Preclusion" = "goldenrod",
-                                "Reallocation" = "steelblue",
-                                "True" = "grey40")) +
-  scale_x_continuous(breaks = 1:15) +
-  ylim(0, NA) +
-  theme_minimal() +
-  theme(legend.position = "right",
-    legend.title = element_blank(),
-    text = element_text(size = 14),
-    legend.text = element_text(size = 14),
-    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)) +
-  guides(color = guide_legend(override.aes = list(size = 5)))
+#Read ratio est and model based
+indices <- readRDS(here(surv.prods, str_c(species, season, "all-ihat-surveys.rds", sep="_")))
+ihat_ratioest_all <- readRDS(here(surv.prods, "ratio_est", "scup", "scup_fall_ratio_estimator_ihat.rds"))
+ihat_model_all <- readRDS(here(surv.prods, "fit_out", "scup", "scup_fall_model_based_wind_ihat.rds"))
 
 
+ihat_model_all2 <- ihat_model_all |>
+  rename(year = YEAR) |>
+  group_by(pop, sim) |>
+  mutate(
+    n_years = n_distinct(year),
+    mean_ihat = mean(est, na.rm = TRUE),
+          cv = se_natural / est,
 
+    # this is the model-based analog of var_mean_ihat
+    var_mean_ihat = sum(se_natural^2, na.rm = TRUE) / (n_years^2),
 
+    # covariance between annual estimate and the across-year mean
+    cov_est_mean = (se_natural^2) / n_years,
 
+    rel_ihat = est / mean_ihat,
 
+    rel_var =
+      (se_natural^2 / (mean_ihat^2)) +
+      ((est^2) * var_mean_ihat / (mean_ihat^4)) -
+      (2 * est * cov_est_mean / (mean_ihat^3)),
 
-ggplot(trueN, aes(x = year, y = rel_N, group = pop)) +
-  geom_line(alpha = 0.3, color = "steelblue") +
-  labs(
-    title = "Simulated True Relative Abundance",
-    subtitle = "Across 100 populations over 15 years",
-    x = "Year", y = "Relative Abundance"
-  ) +
-  theme(
-    text = element_text(size = 14),
-    axis.title = element_text(size = 14),
-    plot.title = element_text(size = 16, face = "bold"),
-    legend.position = "none")
-
-
-
-
-
-# Summarize true abundance - median
-true_summary_med <- trueN %>%
-  group_by(year) %>%
-  summarise(median_rel_N = median(rel_N), .groups = "drop")
-
-# Summarize true abundance - median
-true_summary_avg <- trueN %>%
-  group_by(year) %>%
-  summarise(mean_rel_N = mean(rel_N), .groups = "drop")
-
-# Summarize estimates (mean or median) for each scenario - median
-index_summary_med <- indices %>%
-  group_by(year, scenario) %>%
-  summarise(median_rel_ihat = median(rel_ihat), .groups = "drop")
-
-# Summarize estimates (mean or median) for each scenario - mean
-index_summary_avg <- indices %>%
-  group_by(year, scenario) %>%
-  summarise(mean_rel_ihat = mean(rel_ihat), .groups = "drop")
-
-# Plot all
-ggplot() +
-  geom_line(data = true_summary_med, aes(x = year, y = median_rel_N), color = "black", size = 1.2, linetype = "dashed") +
-  geom_line(data = index_summary_med, aes(x = year, y = median_rel_ihat, color = scenario), size = 1) +
-  labs(title = "Median Relative Abundance Over Time",
-       subtitle = "Dashed line = Simulated true abundance | Colored lines = Estimated abundance",
-       y = "Relative Abundance",
-       x = "Year") +
-  theme(legend.position = "bottom", text = element_text(size = 13))
-
-
-# Plot all
-ggplot() +
-  geom_line(data = true_summary_avg, aes(x = year, y = mean_rel_N), color = "black", size = 1.2, linetype = "dashed") +
-  geom_line(data = index_summary_avg, aes(x = year, y = mean_rel_ihat, color = scenario), size = 1) +
-  labs(title = "Mean Relative Abundance Over Time",
-       subtitle = "Dashed line = Simulated true abundance | Colored lines = Estimated abundance",
-       y = "Relative Abundance",
-       x = "Year") +
-  theme(legend.position = "bottom", text = element_text(size = 13))
-
-
-# Reorder scenarios before plotting
-indices <- indices %>%
-  mutate(scenario = factor(scenario, levels = c("Status Quo", "Preclusion", "Reallocation")))
-
-# Plot boxplots + dashed line
-ggplot() +
-  geom_boxplot(data = indices,
-               aes(x = factor(year), y = rel_ihat, fill = scenario),
-               outlier.size = 0.5, width = 0.7, alpha = 0.8,
-               position = position_dodge(width = 0.9)) +
-    geom_line(data = true_summary_avg,
-            aes(x = year, y = mean_rel_N),
-            color = "black", size = 1) +
-    scale_fill_manual(values = c(
-    "Status Quo"   = "salmon",
-    "Preclusion"   = "#DAA520",
-    "Reallocation" = "#4682B4"
-  )) +
-    labs(title = "Estimated Relative Abundance vs. Simulated Truth",
-       subtitle = "Solid line = Simulated true abundance | Boxes = Survey-based estimates",
-       x = "Year",
-       y = "Relative Abundance") +
-  theme_minimal() +
-  theme(legend.position = "bottom",
-        legend.title = element_blank(),
-        text = element_text(size = 13)) +
-  scale_x_discrete(breaks = as.character(1:15))  # show all years
-
-
-
-
-
-
-
-# Summarize by year and scenario
-ihat_summary <- indices %>%
-  group_by(year, scenario) %>%
-  summarise(
-    mean_rel_ihat = mean(rel_ihat, na.rm = TRUE),
-    sd_rel_ihat = sd(rel_ihat, na.rm = TRUE),
-    n = n(),
-    se_rel_ihat = sd_rel_ihat / sqrt(n),
-    cv_rel_ihat = sd_rel_ihat / mean_rel_ihat,
-    log_se = sqrt(log(1 + cv_rel_ihat^2)),
-    log_lower = log(mean_rel_ihat) - 1.96 * log_se,
-    log_upper = log(mean_rel_ihat) + 1.96 * log_se,
-    ci_lower = exp(log_lower),
-    ci_upper = exp(log_upper),
-    .groups = "drop" # don't forget this if using summarise
-  )
-
-
-
-ggplot(ihat_summary, aes(x = year, y = mean_rel_ihat, color = scenario, fill = scenario)) +
-  geom_line(size = 1.2) +
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.3, color = NA) +
-  labs(title = "Estimated Relative Abundance",
-       y = "Relative Abundance",
-       x = "Year") +
-  theme_minimal() +
-  scale_color_manual(values = c(
-    "Status Quo" = "salmon",
-    "Preclusion" = "goldenrod",
-    "Reallocation" = "steelblue"
-  )) +
-  scale_fill_manual(values = c(
-    "Status Quo" = "salmon",
-    "Preclusion" = "goldenrod",
-    "Reallocation" = "steelblue"
-  )) +
-  theme(legend.position = "right",
-        text = element_text(size = 14))
-
-
-
-# Faceted plot by scenario
-ggplot(ihat_summary, aes(x = year, y = mean_rel_ihat, color = scenario, fill = scenario)) +
-  geom_line(size = 1.2) +
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.3, color = NA) +
-  facet_wrap(~ scenario, ncol = 1) +
-  scale_color_manual(values = c(
-    "Status Quo" = "salmon",
-    "Preclusion" = "goldenrod",
-    "Reallocation" = "steelblue"
-  )) +
-  scale_fill_manual(values = c(
-    "Status Quo" = "salmon",
-    "Preclusion" = "goldenrod",
-    "Reallocation" = "steelblue"
-  )) +
-  labs(title = "Estimated Relative Abundance per Survey Scenario",
-       subtitle = "",
-       y = "Relative Abundance",
-       x = "Year") +
-  theme_minimal() +
-  theme(
-    text = element_text(size = 14),
-    strip.text = element_text(size = 14, face = "bold"),
-    legend.position = "none"
-  )
-
-
-
-
-# Calculate mean and uncertainty of RELATIVE TRUE ABUNDANCE
-trueN_yr_rel <- trueN %>%
-  group_by(year) %>%
-  summarise(
-    mean_rel_N = mean(rel_N),        # mean relative N
-    sd_rel_N   = sd(rel_N),           # standard deviation of relative N
-    n_pops     = n(),                 # number of pops (should be 100)
-    se_rel_N   = sd_rel_N / sqrt(n_pops),   # SE for relative N
-    cv_rel_N   = sd_rel_N / mean_rel_N,     # CV for relative N
-    log_se_rel_N = sqrt(log(1 + cv_rel_N^2)), # Delta method SE (log scale)
-    log_lower = log(mean_rel_N) - 1.96 * log_se_rel_N,
-    log_upper = log(mean_rel_N) + 1.96 * log_se_rel_N,
-    ci_lower = exp(log_lower),        # lower 95% CI back to normal scale
-    ci_upper = exp(log_upper)         # upper 95% CI back to normal scale
+    rel_var = pmax(rel_var, 0),
+    rel_se = sqrt(rel_var),
+    rel_cv = rel_se / rel_ihat,
+    rel_log_sd = sqrt(log(1 + rel_cv^2)),
+    rel_log_mean = log(rel_ihat) - 0.5 * rel_log_sd^2,
+    rel_ci_lower = qlnorm(0.025, meanlog = rel_log_mean, sdlog = rel_log_sd),
+    rel_ci_upper = qlnorm(0.975, meanlog = rel_log_mean, sdlog = rel_log_sd)
   ) |>
-  mutate(scenario = "True")
+  ungroup()
 
 
-library(dplyr)
+ihat_model_final <- ihat_model_all2 |>
+  mutate(stratmu = NA_real_,
+         stratvar = NA_real_,
+    scenario = type   # rename "type" to "scenario"
+  ) |>
+  rename(cov_stratmu_mean = cov_est_mean) |>
+  select(pop, sim, year, stratmu, stratvar, cv, scenario, n_years, mean_ihat, var_mean_ihat, cov_stratmu_mean,
+    rel_ihat, rel_var, rel_se, rel_cv, rel_log_mean, rel_log_sd, rel_ci_lower, rel_ci_upper)
 
-# Make sure columns match (rename if necessary)
-trueN_yr_rel <- trueN_yr_rel %>%
-  rename(rel_ihat = mean_rel_N)  # Rename for consistency
-
-# Bind rows
-combined_data <- bind_rows(ihat_summary, trueN_yr_rel)
 
 
-ggplot(combined_data, aes(x = year, y = rel_ihat, color = scenario, fill = scenario)) +
-  # Confidence ribbons (only where ci_lower and ci_upper exist)
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper),
-              data = combined_data,
-              inherit.aes = TRUE,
-              alpha = 0.3, color = NA) +
-    # Lines
-  geom_line(size = 1.2) +
 
-  labs(
-    title = "True vs Estimated Relative Abundance",
-    x = "Year",
-    y = "Relative Abundance",
-    fill = "Scenario",
-    color = "Scenario"
-  ) +
 
-  scale_color_manual(values = c(
-    "Status Quo" = "salmon",
-    "Preclusion" = "goldenrod",
-    "Reallocation" = "steelblue",
-    "True" = "black"
-  )) +
+indices2 <- bind_rows(indices, ihat_ratioest_all)
 
-  scale_fill_manual(values = c(
-    "Status Quo" = "salmon",
-    "Preclusion" = "goldenrod",
-    "Reallocation" = "steelblue",
-    "True" = "black"
-  )) +
 
-  theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "right",
-    legend.title = element_blank()
-  )
+ihat_model_final <- ihat_model_final |>
+  select(names(indices2))
 
+
+indices3 <- bind_rows(indices2, ihat_model_final)
+
+indices3 <- indices3 |> mutate(scenario = ifelse(scenario == "index", "Model based", scenario))
+
+indices3 |> filter(sim == 1, pop ==1, year==1)
+
+saveRDS(indices3, here(surv.prods, str_c(species, season, "indices.rds", sep = "_")))
 
 
 

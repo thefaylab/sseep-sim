@@ -71,7 +71,7 @@ plots <- here("outputs", "plots")
 ## Parameters
 
 ```{r}
-species <- "scup"
+species <- "summerflounder"
 season  <- "fall"
 ages      <- 0:7
 years     <- 1:15
@@ -442,86 +442,9 @@ ratio_ihat |>
 
 
 ```{r}
-ratio.est <- here("data", "rds", "surv-prods", "ratio_est", "scup")
+ratio.est <- here("data", "rds", "surv-prods", "ratio_est", "summerflounder")
 saveRDS(ratio_ihat, here(ratio.est, str_c(species, season, "ratio_estimator_ihat.rds", sep = "_")))
 
 ```
 
-
-Check
-```{r}
-sq_mu_post <- map2_dfr(survdat_sq, seq_along(survdat_sq), function(surv, pop_num) {
-  surv |>
-    as_tibble() |>
-    filter(strat %in% unlist(strat), year %in% 6:15) |>
-    group_by(pop = pop_num, sim, year, strat) |>
-    summarise(
-      towct = n_distinct(set),
-      mu_sq = sum(n) / towct,
-      var_sq = ifelse(towct < 2, 0, var(n)),
-      .groups = "drop"
-    )
-})
-
-#apply the ratio first, then calculate the corrected annual stratified index for years 6:15
-corrected_sq_post <- sq_mu_post |>
-  left_join(ratio_tbl, by = c("pop", "sim", "strat")) |>
-  filter(!is.na(ratio)) |>
-  left_join(strata_wts, by = "strat") |>
-  mutate(
-    W = Area_SqNm / survey_area,
-    mu_exp = ratio * mu_sq,
-    var_exp = ratio^2 * var_sq,
-    wt_mu = W * mu_exp,
-    wt_var = ifelse(towct < 2, 0, (W^2) * var_exp / towct)
-  ) |>
-  group_by(pop, sim, year) |>
-  summarise(
-    stratmu = sum(wt_mu, na.rm = TRUE),
-    stratvar = sum(wt_var, na.rm = TRUE),
-    cv = sqrt(stratvar) / stratmu,
-    .groups = "drop"
-  ) |>
-  mutate(
-    scenario = "Check"
-  )
-
-
-# years 1:5 
-corrected_sq_pre <- stratmean_sq_all |>
-  filter(year %in% 1:5) |>
-  select(pop, sim, year, stratmu, stratvar, cv, scenario) |>
-  mutate(
-    scenario = "Check"
-  )
-
-# combine full 1:15 time series before calculating relative index
-corrected_sq_all <- bind_rows(corrected_sq_pre, corrected_sq_post) |>
-  arrange(pop, sim, year)
-
-
-# corrected ihat
-ratio_ihat_check <- corrected_sq_all %>%
-  group_by(pop, sim) %>%
-  mutate(
-    n_years = n_distinct(year),
-    mean_ihat = mean(stratmu, na.rm = TRUE),
-    var_mean_ihat = sum(stratvar, na.rm = TRUE) / (n_years^2),
-    cov_stratmu_mean = stratvar / n_years,
-    rel_ihat = stratmu / mean_ihat,
-    rel_var =
-      (stratvar / (mean_ihat^2)) +
-      ((stratmu^2) * var_mean_ihat / (mean_ihat^4)) -
-      (2 * stratmu * cov_stratmu_mean / (mean_ihat^3)),
-    rel_se = sqrt(pmax(rel_var, 0)),
-    rel_cv = rel_se / rel_ihat,
-    rel_log_sd = sqrt(log(1 + rel_cv^2)),
-    rel_log_mean = log(rel_ihat) - 0.5 * rel_log_sd^2,
-    rel_ci_lower = qlnorm(0.025, meanlog = rel_log_mean, sdlog = rel_log_sd),
-    rel_ci_upper = qlnorm(0.975, meanlog = rel_log_mean, sdlog = rel_log_sd)
-  ) %>%
-  ungroup()
-
-
-```
 
