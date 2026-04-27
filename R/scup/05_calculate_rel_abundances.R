@@ -85,23 +85,28 @@ trueN <- map(pop, ~as_tibble(.$N) |>
   map_dfr(~pluck(.), .id = "pop")
 
 
-
-trueN_yr <- trueN |>
-  group_by(year) |>   # Group data by year to calculate yearly summaries across populations
+trueN_stat <- trueN |>
+  group_by(year) |>
   summarise(
-    mean_N = mean(N), # Compute mean abundance (N) across all pops for each year
-    sd_N = sd(N),     # Compute sd of abund across pop for each year
-    n_pops = n(),     # Count pops
-    se_N = sd_N / sqrt(n_pops), # std error of the mean abundance
-    cv_N = sd_N / mean_N,   # cv
-    log_se_N = sqrt(log(1 + cv_N^2)), # approximate the std error (log space)
-    log_lower = log(mean_N) - 1.96 * log_se_N, # Lower 95% confidence limit in log-space
-    log_upper = log(mean_N) + 1.96 * log_se_N, # Upper 95% confidence limit in log-space
-    ci_lower = exp(log_lower), # Transform lower limit back to original scale (exponentiate)
-    ci_upper = exp(log_upper)) # Transform upper limit back to original scale (exponentiate)
+    mean_rel_N = mean(rel_N),
+    sd_rel_N = sd(rel_N),
+    n_pops = n(),
+    se_rel_N = sd_rel_N / sqrt(n_pops),
+    cv_rel_N = sd_rel_N / mean_rel_N,
+    sdlog = sqrt(log(1 + cv_rel_N^2)),
+    meanlog = log(mean_rel_N) - 0.5 * sdlog^2,
+    ci_lower = qlnorm(0.025, meanlog = meanlog, sdlog = sdlog),
+    ci_upper = qlnorm(0.975, meanlog = meanlog, sdlog = sdlog)
+  )
 
 
-ggplot(trueN_yr, aes(x = year, y = mean_N)) +
+ggplot(trueN_stat, aes(x = year, y = mean_rel_N)) +
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2) +
+  geom_line() +
+  theme_bw()
+
+
+ggplot(trueN_stat, aes(x = year, y = mean_N)) +
   geom_line(color = "black", linewidth = 1) +  # Line for mean abundance
   geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), fill = "lightgray", alpha = 0.5) +  # Confidence interval
   labs(title = "True abundance", x = "Year", y = "True Abundance (N)") +
@@ -342,32 +347,29 @@ saveRDS(ihat_reall_all, here(surv.prods, str_c(species, season, "100pops-25sims-
 
 
 #Read ratio est and model based
+trueN <- readRDS(here(surv.prods, str_c(species, season, "all-ihat-surveys.rds", sep="_")))
 indices <- readRDS(here(surv.prods, str_c(species, season, "all-ihat-surveys.rds", sep="_")))
 ihat_ratioest_all <- readRDS(here(surv.prods, "ratio_est", "scup", "scup_fall_ratio_estimator_ihat.rds"))
-ihat_model_all <- readRDS(here(surv.prods, "fit_out", "scup", "scup_fall_model_based_wind_ihat.rds"))
 
+ihat_model_wind_all <- readRDS(here(surv.prods, "fit_out", "scup", "scup_fall_model_based_wind_ihat.rds"))
+ihat_model_all <- readRDS(here(surv.prods, "fit_out", "scup", "scup_fall_model_based_ihat.rds"))
 
 ihat_model_all2 <- ihat_model_all |>
   rename(year = YEAR) |>
   group_by(pop, sim) |>
   mutate(
     n_years = n_distinct(year),
-    mean_ihat = mean(est, na.rm = TRUE),
-          cv = se_natural / est,
-
-    # this is the model-based analog of var_mean_ihat
-    var_mean_ihat = sum(se_natural^2, na.rm = TRUE) / (n_years^2),
+    mean_ihat = mean(est, na.rm = TRUE),  #   cv = se_natural / est,
+    cv = sqrt(exp(se^2) - 1),
+    var_mean_ihat = sum(se_natural^2, na.rm = TRUE) / (n_years^2),   # this is the model-based analog of var_mean_ihat
 
     # covariance between annual estimate and the across-year mean
     cov_est_mean = (se_natural^2) / n_years,
-
     rel_ihat = est / mean_ihat,
-
     rel_var =
       (se_natural^2 / (mean_ihat^2)) +
       ((est^2) * var_mean_ihat / (mean_ihat^4)) -
       (2 * est * cov_est_mean / (mean_ihat^3)),
-
     rel_var = pmax(rel_var, 0),
     rel_se = sqrt(rel_var),
     rel_cv = rel_se / rel_ihat,
@@ -382,30 +384,74 @@ ihat_model_all2 <- ihat_model_all |>
 ihat_model_final <- ihat_model_all2 |>
   mutate(stratmu = NA_real_,
          stratvar = NA_real_,
-    scenario = type   # rename "type" to "scenario"
+         scenario = type   # rename "type" to "scenario"
   ) |>
   rename(cov_stratmu_mean = cov_est_mean) |>
   select(pop, sim, year, stratmu, stratvar, cv, scenario, n_years, mean_ihat, var_mean_ihat, cov_stratmu_mean,
-    rel_ihat, rel_var, rel_se, rel_cv, rel_log_mean, rel_log_sd, rel_ci_lower, rel_ci_upper)
+         rel_ihat, rel_var, rel_se, rel_cv, rel_log_mean, rel_log_sd, rel_ci_lower, rel_ci_upper)
 
 
+
+ihat_model_wind_all2 <- ihat_model_wind_all |>
+  rename(year = YEAR) |>
+  group_by(pop, sim) |>
+  mutate(
+    n_years = n_distinct(year),
+    mean_ihat = mean(est, na.rm = TRUE),  #   cv = se_natural / est,
+    cv = sqrt(exp(se^2) - 1),
+    var_mean_ihat = sum(se_natural^2, na.rm = TRUE) / (n_years^2),   # this is the model-based analog of var_mean_ihat
+
+    # covariance between annual estimate and the across-year mean
+    cov_est_mean = (se_natural^2) / n_years,
+    rel_ihat = est / mean_ihat,
+    rel_var =
+      (se_natural^2 / (mean_ihat^2)) +
+      ((est^2) * var_mean_ihat / (mean_ihat^4)) -
+      (2 * est * cov_est_mean / (mean_ihat^3)),
+    rel_var = pmax(rel_var, 0),
+    rel_se = sqrt(rel_var),
+    rel_cv = rel_se / rel_ihat,
+    rel_log_sd = sqrt(log(1 + rel_cv^2)),
+    rel_log_mean = log(rel_ihat) - 0.5 * rel_log_sd^2,
+    rel_ci_lower = qlnorm(0.025, meanlog = rel_log_mean, sdlog = rel_log_sd),
+    rel_ci_upper = qlnorm(0.975, meanlog = rel_log_mean, sdlog = rel_log_sd)
+  ) |>
+  ungroup()
+
+
+ihat_model_wind_final <- ihat_model_wind_all2 |>
+  mutate(stratmu = NA_real_,
+         stratvar = NA_real_,
+         scenario = type   # rename "type" to "scenario"
+  ) |>
+  rename(cov_stratmu_mean = cov_est_mean) |>
+  select(pop, sim, year, stratmu, stratvar, cv, scenario, n_years, mean_ihat, var_mean_ihat, cov_stratmu_mean,
+         rel_ihat, rel_var, rel_se, rel_cv, rel_log_mean, rel_log_sd, rel_ci_lower, rel_ci_upper)
+
+
+
+ihat_model_final <- ihat_model_final |> mutate(scenario = "Model based")
+ihat_model_wind_final <- ihat_model_wind_final |>  mutate(scenario = "Model based wind")
 
 
 
 indices2 <- bind_rows(indices, ihat_ratioest_all)
+indices_models <- bind_rows(ihat_model_final, ihat_model_wind_final)
 
-
-ihat_model_final <- ihat_model_final |>
+indices_models <- indices_models |>
   select(names(indices2))
 
 
-indices3 <- bind_rows(indices2, ihat_model_final)
+indices3 <- bind_rows(indices2, indices_models)
 
-indices3 <- indices3 |> mutate(scenario = ifelse(scenario == "index", "Model based", scenario))
-
-indices3 |> filter(sim == 1, pop ==1, year==1)
+indices3 |> filter(sim == 1, pop ==1, year==6)
 
 saveRDS(indices3, here(surv.prods, str_c(species, season, "indices.rds", sep = "_")))
+
+
+
+
+
 
 
 
