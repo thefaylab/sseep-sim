@@ -1,0 +1,900 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\documentclass[
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{wrapfig}
+\usepackage{float}
+\usepackage{colortbl}
+\usepackage{pdflscape}
+\usepackage{tabu}
+\usepackage{threeparttable}
+\usepackage{threeparttablex}
+\usepackage[normalem]{ulem}
+\usepackage{makecell}
+\usepackage{xcolor}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={09 - Ratio Estimator},
+  pdfauthor={Catalina Roman},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{09 - Ratio Estimator}
+\author{Catalina Roman}
+\date{2026-03-11}
+
+\begin{document}
+\maketitle
+
+\section{OBJECTIVE}\label{objective}
+
+For a given species, calculate a ratio estimator as a potential
+mitigation approach to adjust for the loss of sampling coverage caused
+by offshore wind energy development.
+
+Outputs: abundance indices adjusted with the ratio for each population
+and simulation of the projection.
+
+\section{METHODOLOGY}\label{methodology}
+
+A ratio-based estimator was implemented to approximate abundance indices
+that would have been obtained under full survey coverage when sampling
+is restricted by offshore wind development.
+
+For each simulated population and survey replicate, the number of unique
+tows was calculated within each stratum and year. Mean catch per tow was
+then estimated for each stratum and used to compute a stratified
+abundance index across the survey domain using area-based weights
+derived from the survey strata.
+
+The first five years of the simulation were used as a baseline period to
+estimate the relationship between observations from the full survey
+domain and observations from the restricted domain. During this period,
+stratum-level mean catches were calculated separately for the status quo
+survey and for the subset of observations occurring outside wind areas.
+These values represent the abundance that would be observed with full
+coverage and with restricted coverage, respectively.
+
+For each population realization, simulation replicate, year, and
+stratum, an annual ratio was calculated as the ratio of the status quo
+stratum mean to the corresponding restricted-domain stratum mean. When
+the restricted-domain mean was zero or missing (meaning no tows occurred
+outside wind areas), that year was dropped from the calculations. These
+ratios describe the expected relationship between observations obtained
+from the restricted survey domain and observations that would be
+obtained if sampling occurred across the full survey footprint.
+
+The ratio values were derived from stratified means and then matched by
+population, simulation, and stratum. The observed catches were adjusted
+using these ratios to approximate the values that would have been
+observed under full survey coverage.
+
+These adjusted catches were then used to calculate stratified abundance
+indices for the projection period (years 6--15). The same stratified
+mean estimator and area weights used for the status quo and preclusion
+scenarios were applied to the expanded observations. This produced a
+corrected abundance index that approximates the expected survey index
+under full spatial coverage despite sampling restrictions caused by
+offshore wind development.
+
+Finally, relative abundance indices were calculated by standardizing
+annual indices within each population and simulation replicate by the
+mean index across years. Variance estimates, coefficients of variation,
+and confidence intervals were also calculated to quantify uncertainty
+and precision.
+
+\section{PACKAGES}\label{packages}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{library}\NormalTok{(tidyverse)}
+\FunctionTok{library}\NormalTok{(here)}
+\FunctionTok{library}\NormalTok{(sdmTMB)}
+\FunctionTok{source}\NormalTok{(}\FunctionTok{here}\NormalTok{(}\StringTok{"R"}\NormalTok{, }\StringTok{"sim\_stratmean\_fn.R"}\NormalTok{))}
+\FunctionTok{library}\NormalTok{(kableExtra)}
+\end{Highlighting}
+\end{Shaded}
+
+\section{DATA SET UP}\label{data-set-up}
+
+\subsection{Directories}\label{directories}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{sseep.analysis }\OtherTok{\textless{}{-}} \StringTok{"C:/Users/croman1/Desktop/UMassD/sseep{-}analysis"}
+\NormalTok{dist.dat }\OtherTok{\textless{}{-}} \FunctionTok{here}\NormalTok{(}\StringTok{"data"}\NormalTok{, }\StringTok{"rds"}\NormalTok{, }\StringTok{"dists"}\NormalTok{)}
+\NormalTok{survdat }\OtherTok{\textless{}{-}} \FunctionTok{here}\NormalTok{(}\StringTok{"data"}\NormalTok{, }\StringTok{"rds"}\NormalTok{, }\StringTok{"survdat"}\NormalTok{)}
+\NormalTok{surv.prods }\OtherTok{\textless{}{-}} \FunctionTok{here}\NormalTok{(}\StringTok{"data"}\NormalTok{, }\StringTok{"rds"}\NormalTok{, }\StringTok{"surv{-}prods"}\NormalTok{)}
+\NormalTok{plots }\OtherTok{\textless{}{-}} \FunctionTok{here}\NormalTok{(}\StringTok{"outputs"}\NormalTok{, }\StringTok{"plots"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\subsection{Parameters}\label{parameters}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{species }\OtherTok{\textless{}{-}} \StringTok{"scup"}
+\NormalTok{season  }\OtherTok{\textless{}{-}} \StringTok{"fall"}
+\NormalTok{ages      }\OtherTok{\textless{}{-}} \DecValTok{0}\SpecialCharTok{:}\DecValTok{7}
+\NormalTok{years     }\OtherTok{\textless{}{-}} \DecValTok{1}\SpecialCharTok{:}\DecValTok{15}
+\NormalTok{nsims   }\OtherTok{\textless{}{-}} \DecValTok{1}\SpecialCharTok{:}\DecValTok{100}
+\NormalTok{ids     }\OtherTok{\textless{}{-}} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"\%03d"}\NormalTok{, nsims)}
+\end{Highlighting}
+\end{Shaded}
+
+\subsection{Data}\label{data}
+
+\section{Area weights for each
+strata}\label{area-weights-for-each-strata}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{strata\_wts }\OtherTok{\textless{}{-}} \FunctionTok{readRDS}\NormalTok{(}\FunctionTok{here}\NormalTok{(sseep.analysis, }\StringTok{"data"}\NormalTok{, }\StringTok{"rds"}\NormalTok{, }\StringTok{"active\_strata\_wts.rds"}\NormalTok{)) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{rename}\NormalTok{(}\AttributeTok{strat =}\NormalTok{ STRATUM)}
+\end{Highlighting}
+\end{Shaded}
+
+\section{Total survey area}\label{total-survey-area}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{survey\_area }\OtherTok{\textless{}{-}} \FunctionTok{as.integer}\NormalTok{(}\FunctionTok{sum}\NormalTok{(strata\_wts}\SpecialCharTok{$}\NormalTok{Area\_SqNm))}
+\end{Highlighting}
+\end{Shaded}
+
+\section{ABUNDANCE INDEX}\label{abundance-index}
+
+calculate the abundance index and relative abundance index for each of
+the scenarios
+
+\subsection{Status Quo Survey}\label{status-quo-survey}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\#extract the strata that were used to predict spatial distributions in sdmTMB}
+
+\NormalTok{strat }\OtherTok{\textless{}{-}} \FunctionTok{map}\NormalTok{(dist, }\SpecialCharTok{\textasciitilde{}}\FunctionTok{unique}\NormalTok{(.}\SpecialCharTok{$}\NormalTok{strat))}
+
+\FunctionTok{source}\NormalTok{(}\FunctionTok{here}\NormalTok{(}\StringTok{"R/stratmean\_fn.R"}\NormalTok{))}
+
+\NormalTok{stratmean\_sq\_all }\OtherTok{\textless{}{-}} \FunctionTok{calc\_stratmean}\NormalTok{(}
+  \AttributeTok{surv\_list =}\NormalTok{ survdat\_sq,}
+  \AttributeTok{strata\_wts =}\NormalTok{ strata\_wts,}
+  \AttributeTok{survey\_area =}\NormalTok{ survey\_area,}
+  \AttributeTok{scenario\_name =} \StringTok{"Status Quo"}\NormalTok{,}
+  \AttributeTok{value\_col =} \StringTok{"n"}
+\NormalTok{)}
+
+\CommentTok{\# Group by pop (and sim if needed) to compute rel\_ihat within each population}
+\NormalTok{ihat\_sq\_all }\OtherTok{\textless{}{-}}\NormalTok{ stratmean\_sq\_all }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{group\_by}\NormalTok{(pop, sim) }\SpecialCharTok{|\textgreater{}} \CommentTok{\#Calculations are done within each population realization }
+  \CommentTok{\#(pop) and survey replicate (sim)}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{n\_years =} \FunctionTok{n\_distinct}\NormalTok{(year), }\CommentTok{\#counts the number of unique years {-} }
+    \CommentTok{\#needed to compute cariance of the mean across years}
+    \AttributeTok{mean\_ihat =} \FunctionTok{mean}\NormalTok{(stratmu, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{), }\CommentTok{\#average index across years}
+
+    \CommentTok{\# variance of the mean over years {-} assuming years are independent}
+    \AttributeTok{var\_mean\_ihat =} \FunctionTok{sum}\NormalTok{(stratvar, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{) }\SpecialCharTok{/}\NormalTok{ (n\_years}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{),}
+
+    \CommentTok{\# covariance between each annual stratified mean and the mean over years}
+    \AttributeTok{cov\_stratmu\_mean =}\NormalTok{ stratvar }\SpecialCharTok{/}\NormalTok{ n\_years,}
+
+    \CommentTok{\# relative abundance index {-} standardizes each year relative to the average}
+    \AttributeTok{rel\_ihat =}\NormalTok{ stratmu }\SpecialCharTok{/}\NormalTok{ mean\_ihat,}
+
+    \CommentTok{\# delta{-}method variance for rel\_ihat = stratmu / mean\_ihat (Lohr, 2019 Ch9)}
+    \AttributeTok{rel\_var =}
+\NormalTok{      (stratvar }\SpecialCharTok{/}\NormalTok{ (mean\_ihat}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{)) }\SpecialCharTok{+}
+\NormalTok{      ((stratmu}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{) }\SpecialCharTok{*}\NormalTok{ var\_mean\_ihat }\SpecialCharTok{/}\NormalTok{ (mean\_ihat}\SpecialCharTok{\^{}}\DecValTok{4}\NormalTok{)) }\SpecialCharTok{{-}}
+\NormalTok{      (}\DecValTok{2} \SpecialCharTok{*}\NormalTok{ stratmu }\SpecialCharTok{*}\NormalTok{ cov\_stratmu\_mean }\SpecialCharTok{/}\NormalTok{ (mean\_ihat}\SpecialCharTok{\^{}}\DecValTok{3}\NormalTok{)),}
+
+    \AttributeTok{rel\_se =} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{pmax}\NormalTok{(rel\_var,}\DecValTok{0}\NormalTok{)), }\CommentTok{\#standard error of estimator}
+    \AttributeTok{rel\_cv =}\NormalTok{ rel\_se }\SpecialCharTok{/}\NormalTok{ rel\_ihat, }\CommentTok{\#coefficient of variation}
+  
+    \AttributeTok{rel\_log\_sd =} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{log}\NormalTok{(}\DecValTok{1} \SpecialCharTok{+}\NormalTok{ rel\_cv}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{)), }\CommentTok{\#convert the CV into the lognormal SD parameter}
+    \AttributeTok{rel\_log\_mean =} \FunctionTok{log}\NormalTok{(rel\_ihat) }\SpecialCharTok{{-}} \FloatTok{0.5} \SpecialCharTok{*}\NormalTok{ rel\_log\_sd}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{, }
+
+    \AttributeTok{rel\_ci\_lower =} \FunctionTok{qlnorm}\NormalTok{(}\FloatTok{0.025}\NormalTok{, }\AttributeTok{meanlog =}\NormalTok{ rel\_log\_mean, }\AttributeTok{sdlog =}\NormalTok{ rel\_log\_sd),}
+    \AttributeTok{rel\_ci\_upper =} \FunctionTok{qlnorm}\NormalTok{(}\FloatTok{0.975}\NormalTok{, }\AttributeTok{meanlog =}\NormalTok{ rel\_log\_mean, }\AttributeTok{sdlog =}\NormalTok{ rel\_log\_sd)}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+    \FunctionTok{ungroup}\NormalTok{()}
+
+\NormalTok{ihat\_sq\_all }\SpecialCharTok{|\textgreater{}} 
+\NormalTok{  dplyr}\SpecialCharTok{::}\FunctionTok{slice\_head}\NormalTok{(}\AttributeTok{n =} \DecValTok{20}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+\NormalTok{  knitr}\SpecialCharTok{::}\FunctionTok{kable}\NormalTok{(}\AttributeTok{format=}\StringTok{"latex"}\NormalTok{, }\AttributeTok{booktabs=}\ConstantTok{TRUE}\NormalTok{, }\AttributeTok{digits=}\DecValTok{2}\NormalTok{,}
+              \AttributeTok{caption =} \StringTok{"Status Quo Abundance Index (first 20 rows)"}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+\NormalTok{  kableExtra}\SpecialCharTok{::}\FunctionTok{kable\_styling}\NormalTok{(}\AttributeTok{latex\_options =} \FunctionTok{c}\NormalTok{(}\StringTok{"hold\_position"}\NormalTok{, }\StringTok{"scale\_down"}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{table}[!h]
+
+\caption{\label{tab:unnamed-chunk-6}Status Quo Abundance Index (first 20 rows)}
+\centering
+\resizebox{\linewidth}{!}{
+\begin{tabular}[t]{rrrrrlrrrrrrrrrrrrr}
+\toprule
+sim & year & stratmu & stratvar & cv & scenario & pop & n\_years & mean\_ihat & var\_mean\_ihat & cov\_stratmu\_mean & rel\_ihat & rel\_var & rel\_se & rel\_cv & rel\_log\_sd & rel\_log\_mean & rel\_ci\_lower & rel\_ci\_upper\\
+\midrule
+1 & 1 & 169.76 & 6857.84 & 0.49 & Status Quo & 1 & 15 & 119.38 & 89.72 & 457.19 & 1.42 & 0.40 & 0.63 & 0.45 & 0.43 & 0.26 & 0.56 & 2.99\\
+1 & 2 & 91.47 & 1188.84 & 0.38 & Status Quo & 1 & 15 & 119.38 & 89.72 & 79.26 & 0.77 & 0.08 & 0.28 & 0.37 & 0.35 & -0.33 & 0.36 & 1.44\\
+1 & 3 & 53.49 & 237.62 & 0.29 & Status Quo & 1 & 15 & 119.38 & 89.72 & 15.84 & 0.45 & 0.02 & 0.13 & 0.29 & 0.28 & -0.84 & 0.25 & 0.75\\
+1 & 4 & 55.21 & 106.76 & 0.19 & Status Quo & 1 & 15 & 119.38 & 89.72 & 7.12 & 0.46 & 0.01 & 0.09 & 0.20 & 0.20 & -0.79 & 0.31 & 0.67\\
+1 & 5 & 66.36 & 126.50 & 0.17 & Status Quo & 1 & 15 & 119.38 & 89.72 & 8.43 & 0.56 & 0.01 & 0.10 & 0.18 & 0.18 & -0.60 & 0.38 & 0.78\\
+\addlinespace
+1 & 6 & 83.18 & 728.59 & 0.32 & Status Quo & 1 & 15 & 119.38 & 89.72 & 48.57 & 0.70 & 0.05 & 0.22 & 0.32 & 0.31 & -0.41 & 0.36 & 1.22\\
+1 & 7 & 234.53 & 4531.11 & 0.29 & Status Quo & 1 & 15 & 119.38 & 89.72 & 302.07 & 1.96 & 0.26 & 0.51 & 0.26 & 0.25 & 0.64 & 1.15 & 3.13\\
+1 & 8 & 72.12 & 163.42 & 0.18 & Status Quo & 1 & 15 & 119.38 & 89.72 & 10.89 & 0.60 & 0.01 & 0.11 & 0.19 & 0.19 & -0.52 & 0.41 & 0.85\\
+1 & 9 & 191.15 & 456.41 & 0.11 & Status Quo & 1 & 15 & 119.38 & 89.72 & 30.43 & 1.60 & 0.04 & 0.20 & 0.13 & 0.13 & 0.46 & 1.24 & 2.04\\
+1 & 10 & 101.33 & 343.25 & 0.18 & Status Quo & 1 & 15 & 119.38 & 89.72 & 22.88 & 0.85 & 0.03 & 0.16 & 0.19 & 0.19 & -0.18 & 0.58 & 1.21\\
+\addlinespace
+1 & 11 & 174.87 & 1070.93 & 0.19 & Status Quo & 1 & 15 & 119.38 & 89.72 & 71.40 & 1.46 & 0.07 & 0.27 & 0.19 & 0.18 & 0.36 & 1.00 & 2.07\\
+1 & 12 & 206.03 & 2617.09 & 0.25 & Status Quo & 1 & 15 & 119.38 & 89.72 & 174.47 & 1.73 & 0.16 & 0.40 & 0.23 & 0.23 & 0.52 & 1.07 & 2.63\\
+1 & 13 & 115.85 & 447.56 & 0.18 & Status Quo & 1 & 15 & 119.38 & 89.72 & 29.84 & 0.97 & 0.03 & 0.18 & 0.19 & 0.19 & -0.05 & 0.66 & 1.37\\
+1 & 14 & 90.53 & 553.98 & 0.26 & Status Quo & 1 & 15 & 119.38 & 89.72 & 36.93 & 0.76 & 0.04 & 0.20 & 0.26 & 0.25 & -0.31 & 0.45 & 1.21\\
+1 & 15 & 84.83 & 756.77 & 0.32 & Status Quo & 1 & 15 & 119.38 & 89.72 & 50.45 & 0.71 & 0.05 & 0.23 & 0.32 & 0.31 & -0.39 & 0.37 & 1.25\\
+\addlinespace
+2 & 1 & 59.05 & 354.72 & 0.32 & Status Quo & 1 & 15 & 108.94 & 77.28 & 23.65 & 0.54 & 0.03 & 0.17 & 0.32 & 0.31 & -0.66 & 0.28 & 0.95\\
+2 & 2 & 59.46 & 162.43 & 0.21 & Status Quo & 1 & 15 & 108.94 & 77.28 & 10.83 & 0.55 & 0.01 & 0.12 & 0.22 & 0.22 & -0.63 & 0.35 & 0.82\\
+2 & 3 & 113.21 & 2019.08 & 0.40 & Status Quo & 1 & 15 & 108.94 & 77.28 & 134.61 & 1.04 & 0.15 & 0.39 & 0.38 & 0.36 & -0.03 & 0.48 & 1.99\\
+2 & 4 & 82.16 & 413.09 & 0.25 & Status Quo & 1 & 15 & 108.94 & 77.28 & 27.54 & 0.75 & 0.04 & 0.19 & 0.25 & 0.24 & -0.31 & 0.45 & 1.18\\
+2 & 5 & 107.27 & 1430.85 & 0.35 & Status Quo & 1 & 15 & 108.94 & 77.28 & 95.39 & 0.98 & 0.11 & 0.33 & 0.34 & 0.33 & -0.07 & 0.49 & 1.78\\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\subsection{Status quo stratum means
+(baseline)}\label{status-quo-stratum-means-baseline}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{sq\_mu\_y }\OtherTok{\textless{}{-}} \FunctionTok{map2\_dfr}\NormalTok{(survdat\_sq, }\FunctionTok{seq\_along}\NormalTok{(survdat\_sq), }\ControlFlowTok{function}\NormalTok{(surv, pop\_num) \{}
+\NormalTok{  surv }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{as\_tibble}\NormalTok{() }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{filter}\NormalTok{(strat }\SpecialCharTok{\%in\%} \FunctionTok{unlist}\NormalTok{(strat), year }\SpecialCharTok{\%in\%} \DecValTok{1}\SpecialCharTok{:}\DecValTok{5}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{group\_by}\NormalTok{(}\AttributeTok{pop =}\NormalTok{ pop\_num, sim, year, strat) }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{summarise}\NormalTok{(}
+      \AttributeTok{towct\_sq =} \FunctionTok{n\_distinct}\NormalTok{(set),}
+      \AttributeTok{mu\_sq =} \FunctionTok{sum}\NormalTok{(n) }\SpecialCharTok{/}\NormalTok{ towct\_sq,}
+      \AttributeTok{.groups =} \StringTok{"drop"}
+\NormalTok{    )}
+\NormalTok{\})}
+
+\NormalTok{sq\_mu\_y }\SpecialCharTok{|\textgreater{}} 
+\NormalTok{   dplyr}\SpecialCharTok{::}\FunctionTok{slice\_head}\NormalTok{(}\AttributeTok{n =} \DecValTok{20}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+\NormalTok{  knitr}\SpecialCharTok{::}\FunctionTok{kable}\NormalTok{(}\AttributeTok{format=}\StringTok{"latex"}\NormalTok{, }\AttributeTok{booktabs=}\ConstantTok{TRUE}\NormalTok{, }\AttributeTok{digits=}\DecValTok{2}\NormalTok{,}
+              \AttributeTok{caption =} \StringTok{"Status Quo mean years 1{-}5 (first 20 rows)"}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+\NormalTok{  kableExtra}\SpecialCharTok{::}\FunctionTok{kable\_styling}\NormalTok{(}\AttributeTok{latex\_options =} \FunctionTok{c}\NormalTok{(}\StringTok{"H"}\NormalTok{), }\AttributeTok{font\_size =} \DecValTok{8}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{table}[H]
+
+\caption{\label{tab:unnamed-chunk-7}Status Quo mean years 1-5 (first 20 rows)}
+\centering
+\fontsize{8}{10}\selectfont
+\begin{tabular}[t]{rrrrrr}
+\toprule
+pop & sim & year & strat & towct\_sq & mu\_sq\\
+\midrule
+1 & 1 & 1 & 1010 & 9 & 473.00\\
+1 & 1 & 1 & 1020 & 8 & 0.38\\
+1 & 1 & 1 & 1030 & 3 & 0.00\\
+1 & 1 & 1 & 1040 & 3 & 0.00\\
+1 & 1 & 1 & 1050 & 5 & 5211.40\\
+\addlinespace
+1 & 1 & 1 & 1060 & 10 & 177.50\\
+1 & 1 & 1 & 1070 & 3 & 0.00\\
+1 & 1 & 1 & 1080 & 3 & 0.00\\
+1 & 1 & 1 & 1090 & 5 & 653.80\\
+1 & 1 & 1 & 1100 & 10 & 5.60\\
+\addlinespace
+1 & 1 & 1 & 1110 & 3 & 0.00\\
+1 & 1 & 1 & 1120 & 3 & 0.00\\
+1 & 1 & 1 & 1130 & 9 & 0.00\\
+1 & 1 & 1 & 1140 & 3 & 0.00\\
+1 & 1 & 1 & 1150 & 3 & 0.00\\
+\addlinespace
+1 & 1 & 1 & 1160 & 10 & 0.00\\
+1 & 1 & 1 & 1170 & 3 & 0.00\\
+1 & 1 & 1 & 1180 & 3 & 0.00\\
+1 & 1 & 1 & 1190 & 8 & 0.00\\
+1 & 1 & 1 & 1200 & 4 & 0.00\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Preclusion Survey}\label{preclusion-survey}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{min\_tows }\OtherTok{\textless{}{-}} \DecValTok{3}
+
+\CommentTok{\# find strata that actually have enough tows}
+\NormalTok{valid\_strata }\OtherTok{\textless{}{-}} \FunctionTok{map\_dfr}\NormalTok{(survdat\_precl, }\SpecialCharTok{\textasciitilde{}}\FunctionTok{as\_tibble}\NormalTok{(.x)) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{filter}\NormalTok{(year }\SpecialCharTok{\%in\%} \DecValTok{6}\SpecialCharTok{:}\DecValTok{15}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{group\_by}\NormalTok{(strat) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{summarise}\NormalTok{(}\AttributeTok{towct =} \FunctionTok{n\_distinct}\NormalTok{(set), }\AttributeTok{.groups =} \StringTok{"drop"}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{filter}\NormalTok{(towct }\SpecialCharTok{\textgreater{}=}\NormalTok{ min\_tows) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{pull}\NormalTok{(strat)}
+
+\CommentTok{\# filter survey data}
+\NormalTok{survdat\_precl\_filt }\OtherTok{\textless{}{-}} \FunctionTok{map}\NormalTok{(survdat\_precl, }\SpecialCharTok{\textasciitilde{}}
+  \FunctionTok{as\_tibble}\NormalTok{(.x) }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{filter}\NormalTok{(strat }\SpecialCharTok{\%in\%}\NormalTok{ valid\_strata)}
+\NormalTok{)}
+
+\CommentTok{\# filter weights + recompute area}
+\NormalTok{strata\_wts\_filt }\OtherTok{\textless{}{-}}\NormalTok{ strata\_wts }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{filter}\NormalTok{(strat }\SpecialCharTok{\%in\%}\NormalTok{ valid\_strata)}
+
+\NormalTok{survey\_area\_filt }\OtherTok{\textless{}{-}} \FunctionTok{sum}\NormalTok{(strata\_wts\_filt}\SpecialCharTok{$}\NormalTok{Area\_SqNm, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{)}
+
+
+\CommentTok{\# years 1:5: same domain as status quo }
+\NormalTok{survdat\_precl\_y1\_5 }\OtherTok{\textless{}{-}} \FunctionTok{map}\NormalTok{(survdat\_precl, }\SpecialCharTok{\textasciitilde{}}
+  \FunctionTok{as\_tibble}\NormalTok{(.x) }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{filter}\NormalTok{(year }\SpecialCharTok{\%in\%} \DecValTok{1}\SpecialCharTok{:}\DecValTok{5}\NormalTok{)}
+\NormalTok{)}
+
+\NormalTok{stratmean\_precl\_y1\_5 }\OtherTok{\textless{}{-}} \FunctionTok{calc\_stratmean}\NormalTok{(}
+  \AttributeTok{surv\_list     =}\NormalTok{ survdat\_precl\_y1\_5,}
+  \AttributeTok{strata\_wts    =}\NormalTok{ strata\_wts,}
+  \AttributeTok{survey\_area   =}\NormalTok{ survey\_area,}
+  \AttributeTok{scenario\_name =} \StringTok{"Preclusion"}\NormalTok{,}
+  \AttributeTok{value\_col     =} \StringTok{"n"}\NormalTok{,}
+  \AttributeTok{years         =} \DecValTok{1}\SpecialCharTok{:}\DecValTok{5}
+\NormalTok{)}
+
+\CommentTok{\# years 6:15: filter to strata still present under preclusion}
+\NormalTok{survdat\_precl\_y6\_15 }\OtherTok{\textless{}{-}} \FunctionTok{map}\NormalTok{(survdat\_precl, }\SpecialCharTok{\textasciitilde{}}
+  \FunctionTok{as\_tibble}\NormalTok{(.x) }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{filter}\NormalTok{(year }\SpecialCharTok{\%in\%} \DecValTok{6}\SpecialCharTok{:}\DecValTok{15}\NormalTok{) }
+\NormalTok{)}
+
+\NormalTok{stratmean\_precl\_y6\_15 }\OtherTok{\textless{}{-}} \FunctionTok{calc\_stratmean}\NormalTok{(}
+  \AttributeTok{surv\_list     =}\NormalTok{ survdat\_precl\_y6\_15,}
+  \AttributeTok{strata\_wts    =}\NormalTok{ strata\_wts\_filt,}
+  \AttributeTok{survey\_area   =}\NormalTok{ survey\_area\_filt,}
+  \AttributeTok{scenario\_name =} \StringTok{"Preclusion"}\NormalTok{,}
+  \AttributeTok{value\_col     =} \StringTok{"n"}\NormalTok{,}
+  \AttributeTok{years         =} \DecValTok{6}\SpecialCharTok{:}\DecValTok{15}
+\NormalTok{)}
+
+\CommentTok{\#merge }
+\NormalTok{stratmean\_precl\_all }\OtherTok{\textless{}{-}} \FunctionTok{bind\_rows}\NormalTok{(stratmean\_precl\_y1\_5, stratmean\_precl\_y6\_15) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{arrange}\NormalTok{(pop, sim, year)}
+
+
+\CommentTok{\# Group to compute rel\_ihat }
+\NormalTok{ihat\_precl\_all }\OtherTok{\textless{}{-}}\NormalTok{ stratmean\_precl\_all }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{group\_by}\NormalTok{(pop, sim) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{n\_years =} \FunctionTok{n\_distinct}\NormalTok{(year), }
+    \AttributeTok{mean\_ihat =} \FunctionTok{mean}\NormalTok{(stratmu, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{), }
+    \AttributeTok{var\_mean\_ihat =} \FunctionTok{sum}\NormalTok{(stratvar, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{) }\SpecialCharTok{/}\NormalTok{ (n\_years}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{),}
+    \AttributeTok{cov\_stratmu\_mean =}\NormalTok{ stratvar }\SpecialCharTok{/}\NormalTok{ n\_years,}
+    \AttributeTok{rel\_ihat =}\NormalTok{ stratmu }\SpecialCharTok{/}\NormalTok{ mean\_ihat,}
+    \AttributeTok{rel\_var =}
+\NormalTok{      (stratvar }\SpecialCharTok{/}\NormalTok{ (mean\_ihat}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{)) }\SpecialCharTok{+}
+\NormalTok{      ((stratmu}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{) }\SpecialCharTok{*}\NormalTok{ var\_mean\_ihat }\SpecialCharTok{/}\NormalTok{ (mean\_ihat}\SpecialCharTok{\^{}}\DecValTok{4}\NormalTok{)) }\SpecialCharTok{{-}}
+\NormalTok{      (}\DecValTok{2} \SpecialCharTok{*}\NormalTok{ stratmu }\SpecialCharTok{*}\NormalTok{ cov\_stratmu\_mean }\SpecialCharTok{/}\NormalTok{ (mean\_ihat}\SpecialCharTok{\^{}}\DecValTok{3}\NormalTok{)),}
+    \AttributeTok{rel\_se =} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{pmax}\NormalTok{(rel\_var,}\DecValTok{0}\NormalTok{)), }
+    \AttributeTok{rel\_cv =}\NormalTok{ rel\_se }\SpecialCharTok{/}\NormalTok{ rel\_ihat, }
+    \AttributeTok{rel\_log\_sd =} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{log}\NormalTok{(}\DecValTok{1} \SpecialCharTok{+}\NormalTok{ rel\_cv}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{)), }
+    \AttributeTok{rel\_log\_mean =} \FunctionTok{log}\NormalTok{(rel\_ihat) }\SpecialCharTok{{-}} \FloatTok{0.5} \SpecialCharTok{*}\NormalTok{ rel\_log\_sd}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{, }
+    \AttributeTok{rel\_ci\_lower =} \FunctionTok{qlnorm}\NormalTok{(}\FloatTok{0.025}\NormalTok{, }\AttributeTok{meanlog =}\NormalTok{ rel\_log\_mean, }\AttributeTok{sdlog =}\NormalTok{ rel\_log\_sd),}
+    \AttributeTok{rel\_ci\_upper =} \FunctionTok{qlnorm}\NormalTok{(}\FloatTok{0.975}\NormalTok{, }\AttributeTok{meanlog =}\NormalTok{ rel\_log\_mean, }\AttributeTok{sdlog =}\NormalTok{ rel\_log\_sd)}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+    \FunctionTok{ungroup}\NormalTok{()}
+
+
+\NormalTok{ihat\_precl\_all }\SpecialCharTok{|\textgreater{}} 
+\NormalTok{  dplyr}\SpecialCharTok{::}\FunctionTok{slice\_head}\NormalTok{(}\AttributeTok{n =} \DecValTok{20}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+\NormalTok{  knitr}\SpecialCharTok{::}\FunctionTok{kable}\NormalTok{(}\AttributeTok{format=}\StringTok{"latex"}\NormalTok{, }\AttributeTok{booktabs=}\ConstantTok{TRUE}\NormalTok{, }\AttributeTok{digits=}\DecValTok{2}\NormalTok{,}
+              \AttributeTok{caption =} \StringTok{"Preclusion Abundance Index (first 20 rows)"}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+\NormalTok{  kableExtra}\SpecialCharTok{::}\FunctionTok{kable\_styling}\NormalTok{(}\AttributeTok{latex\_options =} \FunctionTok{c}\NormalTok{(}\StringTok{"hold\_position"}\NormalTok{, }\StringTok{"scale\_down"}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{table}[!h]
+
+\caption{\label{tab:unnamed-chunk-8}Preclusion Abundance Index (first 20 rows)}
+\centering
+\resizebox{\linewidth}{!}{
+\begin{tabular}[t]{rrrrrlrrrrrrrrrrrrr}
+\toprule
+sim & year & stratmu & stratvar & cv & scenario & pop & n\_years & mean\_ihat & var\_mean\_ihat & cov\_stratmu\_mean & rel\_ihat & rel\_var & rel\_se & rel\_cv & rel\_log\_sd & rel\_log\_mean & rel\_ci\_lower & rel\_ci\_upper\\
+\midrule
+1 & 1 & 169.76 & 6857.84 & 0.49 & Preclusion & 1 & 15 & 110.44 & 110.12 & 457.19 & 1.54 & 0.47 & 0.68 & 0.45 & 0.43 & 0.34 & 0.61 & 3.23\\
+1 & 2 & 91.47 & 1188.84 & 0.38 & Preclusion & 1 & 15 & 110.44 & 110.12 & 79.26 & 0.83 & 0.09 & 0.30 & 0.37 & 0.36 & -0.25 & 0.39 & 1.56\\
+1 & 3 & 53.49 & 237.62 & 0.29 & Preclusion & 1 & 15 & 110.44 & 110.12 & 15.84 & 0.48 & 0.02 & 0.14 & 0.29 & 0.29 & -0.77 & 0.26 & 0.82\\
+1 & 4 & 55.21 & 106.76 & 0.19 & Preclusion & 1 & 15 & 110.44 & 110.12 & 7.12 & 0.50 & 0.01 & 0.10 & 0.20 & 0.20 & -0.71 & 0.33 & 0.73\\
+1 & 5 & 66.36 & 126.50 & 0.17 & Preclusion & 1 & 15 & 110.44 & 110.12 & 8.43 & 0.60 & 0.01 & 0.11 & 0.19 & 0.19 & -0.53 & 0.41 & 0.85\\
+\addlinespace
+1 & 6 & 66.84 & 888.71 & 0.45 & Preclusion & 1 & 15 & 110.44 & 110.12 & 59.25 & 0.61 & 0.07 & 0.27 & 0.44 & 0.42 & -0.59 & 0.24 & 1.26\\
+1 & 7 & 177.07 & 4387.64 & 0.37 & Preclusion & 1 & 15 & 110.44 & 110.12 & 292.51 & 1.60 & 0.31 & 0.55 & 0.35 & 0.34 & 0.42 & 0.79 & 2.92\\
+1 & 8 & 68.89 & 51.01 & 0.10 & Preclusion & 1 & 15 & 110.44 & 110.12 & 3.40 & 0.62 & 0.01 & 0.09 & 0.14 & 0.14 & -0.48 & 0.47 & 0.81\\
+1 & 9 & 173.38 & 1026.52 & 0.18 & Preclusion & 1 & 15 & 110.44 & 110.12 & 68.43 & 1.57 & 0.09 & 0.30 & 0.19 & 0.19 & 0.43 & 1.07 & 2.23\\
+1 & 10 & 97.35 & 168.09 & 0.13 & Preclusion & 1 & 15 & 110.44 & 110.12 & 11.21 & 0.88 & 0.02 & 0.14 & 0.16 & 0.16 & -0.14 & 0.64 & 1.18\\
+\addlinespace
+1 & 11 & 240.77 & 1342.31 & 0.15 & Preclusion & 1 & 15 & 110.44 & 110.12 & 89.49 & 2.18 & 0.12 & 0.35 & 0.16 & 0.16 & 0.77 & 1.58 & 2.94\\
+1 & 12 & 239.14 & 7043.37 & 0.35 & Preclusion & 1 & 15 & 110.44 & 110.12 & 469.56 & 2.17 & 0.45 & 0.67 & 0.31 & 0.30 & 0.73 & 1.14 & 3.75\\
+1 & 13 & 67.67 & 596.09 & 0.36 & Preclusion & 1 & 15 & 110.44 & 110.12 & 39.74 & 0.61 & 0.05 & 0.22 & 0.36 & 0.35 & -0.55 & 0.29 & 1.14\\
+1 & 14 & 51.91 & 705.96 & 0.51 & Preclusion & 1 & 15 & 110.44 & 110.12 & 47.06 & 0.47 & 0.06 & 0.24 & 0.50 & 0.48 & -0.87 & 0.17 & 1.07\\
+1 & 15 & 37.22 & 48.98 & 0.19 & Preclusion & 1 & 15 & 110.44 & 110.12 & 3.27 & 0.34 & 0.00 & 0.07 & 0.21 & 0.20 & -1.11 & 0.22 & 0.49\\
+\addlinespace
+2 & 1 & 59.05 & 354.72 & 0.32 & Preclusion & 1 & 15 & 100.04 & 100.02 & 23.65 & 0.59 & 0.04 & 0.19 & 0.32 & 0.31 & -0.58 & 0.30 & 1.04\\
+2 & 2 & 59.46 & 162.43 & 0.21 & Preclusion & 1 & 15 & 100.04 & 100.02 & 10.83 & 0.59 & 0.02 & 0.14 & 0.23 & 0.23 & -0.55 & 0.37 & 0.90\\
+2 & 3 & 113.21 & 2019.08 & 0.40 & Preclusion & 1 & 15 & 100.04 & 100.02 & 134.61 & 1.13 & 0.18 & 0.43 & 0.38 & 0.37 & 0.06 & 0.52 & 2.17\\
+2 & 4 & 82.16 & 413.09 & 0.25 & Preclusion & 1 & 15 & 100.04 & 100.02 & 27.54 & 0.82 & 0.04 & 0.21 & 0.25 & 0.25 & -0.23 & 0.49 & 1.30\\
+2 & 5 & 107.27 & 1430.85 & 0.35 & Preclusion & 1 & 15 & 100.04 & 100.02 & 95.39 & 1.07 & 0.13 & 0.37 & 0.34 & 0.33 & 0.01 & 0.53 & 1.95\\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\subsection{Preclusion stratum means for
+baseline}\label{preclusion-stratum-means-for-baseline}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{precl\_mu\_y }\OtherTok{\textless{}{-}} \FunctionTok{map2\_dfr}\NormalTok{(survdat\_sq, }\FunctionTok{seq\_along}\NormalTok{(survdat\_sq), }\ControlFlowTok{function}\NormalTok{(surv, pop\_num) \{}
+\NormalTok{  surv }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{as\_tibble}\NormalTok{() }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{filter}\NormalTok{(strat }\SpecialCharTok{\%in\%} \FunctionTok{unlist}\NormalTok{(strat), year }\SpecialCharTok{\%in\%} \DecValTok{1}\SpecialCharTok{:}\DecValTok{5}\NormalTok{, AREA\_CODE }\SpecialCharTok{!=} \DecValTok{1}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{group\_by}\NormalTok{(}\AttributeTok{pop =}\NormalTok{ pop\_num, sim, year, strat) }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{summarise}\NormalTok{(}
+      \AttributeTok{towct\_precl =} \FunctionTok{n\_distinct}\NormalTok{(set),}
+      \AttributeTok{mu\_precl =} \FunctionTok{sum}\NormalTok{(n) }\SpecialCharTok{/}\NormalTok{ towct\_precl,}
+      \AttributeTok{.groups =} \StringTok{"drop"}
+\NormalTok{    )}
+\NormalTok{\})}
+
+\NormalTok{precl\_mu\_y }\SpecialCharTok{|\textgreater{}} 
+\NormalTok{   dplyr}\SpecialCharTok{::}\FunctionTok{slice\_head}\NormalTok{(}\AttributeTok{n =} \DecValTok{20}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+\NormalTok{  knitr}\SpecialCharTok{::}\FunctionTok{kable}\NormalTok{(}\AttributeTok{format=}\StringTok{"latex"}\NormalTok{, }\AttributeTok{booktabs=}\ConstantTok{TRUE}\NormalTok{, }\AttributeTok{digits=}\DecValTok{2}\NormalTok{,}
+              \AttributeTok{caption =} \StringTok{"Preclusion mean years 1{-}5 (first 20 rows)"}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+\NormalTok{   kableExtra}\SpecialCharTok{::}\FunctionTok{kable\_styling}\NormalTok{(}\AttributeTok{latex\_options =} \FunctionTok{c}\NormalTok{(}\StringTok{"H"}\NormalTok{), }\AttributeTok{font\_size =} \DecValTok{8}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{table}[H]
+
+\caption{\label{tab:unnamed-chunk-9}Preclusion mean years 1-5 (first 20 rows)}
+\centering
+\fontsize{8}{10}\selectfont
+\begin{tabular}[t]{rrrrrr}
+\toprule
+pop & sim & year & strat & towct\_precl & mu\_precl\\
+\midrule
+1 & 1 & 1 & 1010 & 8 & 527.25\\
+1 & 1 & 1 & 1020 & 8 & 0.38\\
+1 & 1 & 1 & 1030 & 3 & 0.00\\
+1 & 1 & 1 & 1040 & 3 & 0.00\\
+1 & 1 & 1 & 1050 & 2 & 1379.50\\
+\addlinespace
+1 & 1 & 1 & 1060 & 9 & 33.56\\
+1 & 1 & 1 & 1070 & 3 & 0.00\\
+1 & 1 & 1 & 1080 & 3 & 0.00\\
+1 & 1 & 1 & 1090 & 3 & 2.33\\
+1 & 1 & 1 & 1100 & 10 & 5.60\\
+\addlinespace
+1 & 1 & 1 & 1110 & 3 & 0.00\\
+1 & 1 & 1 & 1120 & 3 & 0.00\\
+1 & 1 & 1 & 1130 & 9 & 0.00\\
+1 & 1 & 1 & 1140 & 3 & 0.00\\
+1 & 1 & 1 & 1150 & 3 & 0.00\\
+\addlinespace
+1 & 1 & 1 & 1160 & 10 & 0.00\\
+1 & 1 & 1 & 1170 & 3 & 0.00\\
+1 & 1 & 1 & 1180 & 3 & 0.00\\
+1 & 1 & 1 & 1190 & 8 & 0.00\\
+1 & 1 & 1 & 1200 & 4 & 0.00\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Ratio calculation
+(y\_tot/y\_preclusion)}\label{ratio-calculation-y_toty_preclusion}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{min\_tows\_ratio }\OtherTok{\textless{}{-}} \DecValTok{3}
+
+\CommentTok{\# ratio\_tbl \textless{}{-} sq\_mu\_y |\textgreater{}}
+\CommentTok{\#   left\_join(precl\_mu\_y, by = c("pop", "sim", "year", "strat")) |\textgreater{}}
+\CommentTok{\#   filter(year \%in\% 1:5) |\textgreater{}}
+\CommentTok{\#   mutate(}
+\CommentTok{\#     ratio\_y = ifelse(is.na(mu\_precl) | mu\_precl == 0, 1, mu\_sq / mu\_precl)}
+\CommentTok{\#   ) |\textgreater{}}
+\CommentTok{\#   group\_by(pop, sim, strat) |\textgreater{} \#number of rows is 100 pops x 25 sims x 81 strata = 202500}
+\CommentTok{\#   summarise(}
+\CommentTok{\#     ratio = mean(ratio\_y, na.rm = TRUE),  \#for those where towct.y is \textgreater{}=3 }
+\CommentTok{\#     .groups = "drop"}
+\CommentTok{\#   )}
+
+\NormalTok{ratio\_y\_tbl }\OtherTok{\textless{}{-}}\NormalTok{ sq\_mu\_y }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{left\_join}\NormalTok{(precl\_mu\_y, }\AttributeTok{by =} \FunctionTok{c}\NormalTok{(}\StringTok{"pop"}\NormalTok{, }\StringTok{"sim"}\NormalTok{, }\StringTok{"year"}\NormalTok{, }\StringTok{"strat"}\NormalTok{)) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{filter}\NormalTok{(year }\SpecialCharTok{\%in\%} \DecValTok{1}\SpecialCharTok{:}\DecValTok{5}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{ratio\_y =} \FunctionTok{if\_else}\NormalTok{(}
+\NormalTok{      towct\_precl }\SpecialCharTok{\textgreater{}=} \DecValTok{3} \SpecialCharTok{\&} \SpecialCharTok{!}\FunctionTok{is.na}\NormalTok{(mu\_precl) }\SpecialCharTok{\&}\NormalTok{ mu\_precl }\SpecialCharTok{\textgreater{}} \DecValTok{0}\NormalTok{,}
+\NormalTok{      mu\_sq }\SpecialCharTok{/}\NormalTok{ mu\_precl,}
+      \ConstantTok{NA\_real\_}
+\NormalTok{    )}
+\NormalTok{  )}
+
+\NormalTok{ratio\_tbl }\OtherTok{\textless{}{-}}\NormalTok{ ratio\_y\_tbl }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{group\_by}\NormalTok{(pop, sim, strat) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{summarise}\NormalTok{(}
+    \AttributeTok{ratio =} \FunctionTok{mean}\NormalTok{(ratio\_y, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{),}
+    \AttributeTok{.groups =} \StringTok{"drop"}
+\NormalTok{  )}
+
+\NormalTok{ratio\_tbl }\SpecialCharTok{|\textgreater{}}
+\NormalTok{  dplyr}\SpecialCharTok{::}\FunctionTok{slice\_head}\NormalTok{(}\AttributeTok{n =} \DecValTok{20}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+\NormalTok{  knitr}\SpecialCharTok{::}\FunctionTok{kable}\NormalTok{(}\AttributeTok{format=}\StringTok{"latex"}\NormalTok{, }\AttributeTok{booktabs=}\ConstantTok{TRUE}\NormalTok{, }\AttributeTok{digits=}\DecValTok{2}\NormalTok{,}
+              \AttributeTok{caption =} \StringTok{"Ratio (first 20 rows)"}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+\NormalTok{  kableExtra}\SpecialCharTok{::}\FunctionTok{kable\_styling}\NormalTok{(}\AttributeTok{latex\_options =} \FunctionTok{c}\NormalTok{(}\StringTok{"H"}\NormalTok{), }\AttributeTok{font\_size =} \DecValTok{8}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{table}[H]
+
+\caption{\label{tab:unnamed-chunk-10}Ratio (first 20 rows)}
+\centering
+\fontsize{8}{10}\selectfont
+\begin{tabular}[t]{rrrr}
+\toprule
+pop & sim & strat & ratio\\
+\midrule
+1 & 1 & 1010 & 0.79\\
+1 & 1 & 1020 & 0.94\\
+1 & 1 & 1030 & NaN\\
+1 & 1 & 1040 & NaN\\
+1 & 1 & 1050 & 2.85\\
+\addlinespace
+1 & 1 & 1060 & 5.16\\
+1 & 1 & 1070 & NaN\\
+1 & 1 & 1080 & NaN\\
+1 & 1 & 1090 & 143.91\\
+1 & 1 & 1100 & 1.70\\
+\addlinespace
+1 & 1 & 1110 & NaN\\
+1 & 1 & 1120 & NaN\\
+1 & 1 & 1130 & NaN\\
+1 & 1 & 1140 & NaN\\
+1 & 1 & 1150 & NaN\\
+\addlinespace
+1 & 1 & 1160 & NaN\\
+1 & 1 & 1170 & NaN\\
+1 & 1 & 1180 & NaN\\
+1 & 1 & 1190 & NaN\\
+1 & 1 & 1200 & NaN\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{ratio\_tbl }\SpecialCharTok{|\textgreater{}} \FunctionTok{filter}\NormalTok{(strat }\SpecialCharTok{==} \DecValTok{1050}\NormalTok{, sim}\SpecialCharTok{==}\DecValTok{1}\NormalTok{, pop}\SpecialCharTok{==}\DecValTok{1}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 1 x 4
+##     pop   sim strat ratio
+##   <int> <int> <dbl> <dbl>
+## 1     1     1  1050  2.85
+\end{verbatim}
+
+\section{Calculate corrected index}\label{calculate-corrected-index}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\#obtain projected years means}
+\NormalTok{precl\_mu\_post }\OtherTok{\textless{}{-}} \FunctionTok{map2\_dfr}\NormalTok{(survdat\_precl, }\FunctionTok{seq\_along}\NormalTok{(survdat\_precl), }\ControlFlowTok{function}\NormalTok{(surv, pop\_num) \{}
+\NormalTok{  surv }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{as\_tibble}\NormalTok{() }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{filter}\NormalTok{(strat }\SpecialCharTok{\%in\%} \FunctionTok{unlist}\NormalTok{(strat), year }\SpecialCharTok{\%in\%} \DecValTok{6}\SpecialCharTok{:}\DecValTok{15}\NormalTok{, AREA\_CODE }\SpecialCharTok{!=} \DecValTok{1}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{group\_by}\NormalTok{(}\AttributeTok{pop =}\NormalTok{ pop\_num, sim, year, strat) }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{summarise}\NormalTok{(}
+      \AttributeTok{towct =} \FunctionTok{n\_distinct}\NormalTok{(set),}
+      \AttributeTok{mu\_precl =} \FunctionTok{sum}\NormalTok{(n) }\SpecialCharTok{/}\NormalTok{ towct,}
+      \AttributeTok{var\_precl =} \FunctionTok{ifelse}\NormalTok{(towct }\SpecialCharTok{\textless{}} \DecValTok{2}\NormalTok{, }\DecValTok{0}\NormalTok{, }\FunctionTok{var}\NormalTok{(n)),}
+      \AttributeTok{.groups =} \StringTok{"drop"}
+\NormalTok{    )}
+\NormalTok{\})}
+
+\CommentTok{\#apply the ratio first, then calculate the corrected annual stratified index for years 6:15}
+\NormalTok{corrected\_precl\_post }\OtherTok{\textless{}{-}}\NormalTok{ precl\_mu\_post }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{left\_join}\NormalTok{(ratio\_tbl, }\AttributeTok{by =} \FunctionTok{c}\NormalTok{(}\StringTok{"pop"}\NormalTok{, }\StringTok{"sim"}\NormalTok{, }\StringTok{"strat"}\NormalTok{)) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{filter}\NormalTok{(}\SpecialCharTok{!}\FunctionTok{is.na}\NormalTok{(ratio)) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{left\_join}\NormalTok{(strata\_wts, }\AttributeTok{by =} \StringTok{"strat"}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{W =}\NormalTok{ Area\_SqNm }\SpecialCharTok{/}\NormalTok{ survey\_area,}
+    \AttributeTok{mu\_exp =}\NormalTok{ ratio }\SpecialCharTok{*}\NormalTok{ mu\_precl,}
+    \AttributeTok{var\_exp =}\NormalTok{ ratio}\SpecialCharTok{\^{}}\DecValTok{2} \SpecialCharTok{*}\NormalTok{ var\_precl,}
+    \AttributeTok{wt\_mu =}\NormalTok{ W }\SpecialCharTok{*}\NormalTok{ mu\_exp,}
+    \AttributeTok{wt\_var =} \FunctionTok{ifelse}\NormalTok{(towct }\SpecialCharTok{\textless{}} \DecValTok{2}\NormalTok{, }\DecValTok{0}\NormalTok{, (W}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{) }\SpecialCharTok{*}\NormalTok{ var\_exp }\SpecialCharTok{/}\NormalTok{ towct)}
+\NormalTok{  ) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{group\_by}\NormalTok{(pop, sim, year) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{summarise}\NormalTok{(}
+    \AttributeTok{stratmu =} \FunctionTok{sum}\NormalTok{(wt\_mu, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{),}
+    \AttributeTok{stratvar =} \FunctionTok{sum}\NormalTok{(wt\_var, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{),}
+    \AttributeTok{cv =} \FunctionTok{sqrt}\NormalTok{(stratvar) }\SpecialCharTok{/}\NormalTok{ stratmu,}
+    \AttributeTok{.groups =} \StringTok{"drop"}
+\NormalTok{  ) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{scenario =} \StringTok{"Ratio estimator"}
+\NormalTok{  )}
+
+
+\CommentTok{\# years 1:5 must match the uncorrected baseline, use status quo as reference series}
+\NormalTok{corrected\_precl\_pre }\OtherTok{\textless{}{-}}\NormalTok{ stratmean\_sq\_all }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{filter}\NormalTok{(year }\SpecialCharTok{\%in\%} \DecValTok{1}\SpecialCharTok{:}\DecValTok{5}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{select}\NormalTok{(pop, sim, year, stratmu, stratvar, cv, scenario) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{scenario =} \StringTok{"Ratio estimator"}
+\NormalTok{  )}
+
+\CommentTok{\# combine full 1:15 time series before calculating relative index}
+\NormalTok{corrected\_precl\_all }\OtherTok{\textless{}{-}} \FunctionTok{bind\_rows}\NormalTok{(corrected\_precl\_pre, corrected\_precl\_post) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{arrange}\NormalTok{(pop, sim, year)}
+
+
+\CommentTok{\# corrected ihat}
+\NormalTok{ratio\_ihat }\OtherTok{\textless{}{-}}\NormalTok{ corrected\_precl\_all }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(pop, sim) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{n\_years =} \FunctionTok{n\_distinct}\NormalTok{(year),}
+    \AttributeTok{mean\_ihat =} \FunctionTok{mean}\NormalTok{(stratmu, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{),}
+    \AttributeTok{var\_mean\_ihat =} \FunctionTok{sum}\NormalTok{(stratvar, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{) }\SpecialCharTok{/}\NormalTok{ (n\_years}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{),}
+    \AttributeTok{cov\_stratmu\_mean =}\NormalTok{ stratvar }\SpecialCharTok{/}\NormalTok{ n\_years,}
+    \AttributeTok{rel\_ihat =}\NormalTok{ stratmu }\SpecialCharTok{/}\NormalTok{ mean\_ihat,}
+    \AttributeTok{rel\_var =}
+\NormalTok{      (stratvar }\SpecialCharTok{/}\NormalTok{ (mean\_ihat}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{)) }\SpecialCharTok{+}
+\NormalTok{      ((stratmu}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{) }\SpecialCharTok{*}\NormalTok{ var\_mean\_ihat }\SpecialCharTok{/}\NormalTok{ (mean\_ihat}\SpecialCharTok{\^{}}\DecValTok{4}\NormalTok{)) }\SpecialCharTok{{-}}
+\NormalTok{      (}\DecValTok{2} \SpecialCharTok{*}\NormalTok{ stratmu }\SpecialCharTok{*}\NormalTok{ cov\_stratmu\_mean }\SpecialCharTok{/}\NormalTok{ (mean\_ihat}\SpecialCharTok{\^{}}\DecValTok{3}\NormalTok{)),}
+    \AttributeTok{rel\_se =} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{pmax}\NormalTok{(rel\_var, }\DecValTok{0}\NormalTok{)),}
+    \AttributeTok{rel\_cv =}\NormalTok{ rel\_se }\SpecialCharTok{/}\NormalTok{ rel\_ihat,}
+    \AttributeTok{rel\_log\_sd =} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{log}\NormalTok{(}\DecValTok{1} \SpecialCharTok{+}\NormalTok{ rel\_cv}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{)),}
+    \AttributeTok{rel\_log\_mean =} \FunctionTok{log}\NormalTok{(rel\_ihat) }\SpecialCharTok{{-}} \FloatTok{0.5} \SpecialCharTok{*}\NormalTok{ rel\_log\_sd}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{,}
+    \AttributeTok{rel\_ci\_lower =} \FunctionTok{qlnorm}\NormalTok{(}\FloatTok{0.025}\NormalTok{, }\AttributeTok{meanlog =}\NormalTok{ rel\_log\_mean, }\AttributeTok{sdlog =}\NormalTok{ rel\_log\_sd),}
+    \AttributeTok{rel\_ci\_upper =} \FunctionTok{qlnorm}\NormalTok{(}\FloatTok{0.975}\NormalTok{, }\AttributeTok{meanlog =}\NormalTok{ rel\_log\_mean, }\AttributeTok{sdlog =}\NormalTok{ rel\_log\_sd)}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{ungroup}\NormalTok{()}
+
+
+\NormalTok{ratio\_ihat }\SpecialCharTok{|\textgreater{}}   
+\NormalTok{  dplyr}\SpecialCharTok{::}\FunctionTok{slice\_head}\NormalTok{(}\AttributeTok{n =} \DecValTok{20}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+\NormalTok{  knitr}\SpecialCharTok{::}\FunctionTok{kable}\NormalTok{(}\AttributeTok{format=}\StringTok{"latex"}\NormalTok{, }\AttributeTok{booktabs=}\ConstantTok{TRUE}\NormalTok{, }\AttributeTok{digits=}\DecValTok{2}\NormalTok{,}
+              \AttributeTok{caption =} \StringTok{"Ratio estimator (first 20 rows)"}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+\NormalTok{  kableExtra}\SpecialCharTok{::}\FunctionTok{kable\_styling}\NormalTok{(}\AttributeTok{latex\_options =} \FunctionTok{c}\NormalTok{(}\StringTok{"hold\_position"}\NormalTok{, }\StringTok{"scale\_down"}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{table}[!h]
+
+\caption{\label{tab:unnamed-chunk-11}Ratio estimator (first 20 rows)}
+\centering
+\resizebox{\linewidth}{!}{
+\begin{tabular}[t]{rrrrrrlrrrrrrrrrrrr}
+\toprule
+pop & sim & year & stratmu & stratvar & cv & scenario & n\_years & mean\_ihat & var\_mean\_ihat & cov\_stratmu\_mean & rel\_ihat & rel\_var & rel\_se & rel\_cv & rel\_log\_sd & rel\_log\_mean & rel\_ci\_lower & rel\_ci\_upper\\
+\midrule
+1 & 1 & 1 & 169.76 & 6857.84 & 0.49 & Ratio estimator & 15 & 2523.72 & 695086.32 & 457.19 & 0.07 & 0.00 & 0.04 & 0.59 & 0.54 & -2.85 & 0.02 & 0.17\\
+1 & 1 & 2 & 91.47 & 1188.84 & 0.38 & Ratio estimator & 15 & 2523.72 & 695086.32 & 79.26 & 0.04 & 0.00 & 0.02 & 0.50 & 0.47 & -3.43 & 0.01 & 0.08\\
+1 & 1 & 3 & 53.49 & 237.62 & 0.29 & Ratio estimator & 15 & 2523.72 & 695086.32 & 15.84 & 0.02 & 0.00 & 0.01 & 0.44 & 0.42 & -3.94 & 0.01 & 0.04\\
+1 & 1 & 4 & 55.21 & 106.76 & 0.19 & Ratio estimator & 15 & 2523.72 & 695086.32 & 7.12 & 0.02 & 0.00 & 0.01 & 0.38 & 0.37 & -3.89 & 0.01 & 0.04\\
+1 & 1 & 5 & 66.36 & 126.50 & 0.17 & Ratio estimator & 15 & 2523.72 & 695086.32 & 8.43 & 0.03 & 0.00 & 0.01 & 0.37 & 0.36 & -3.70 & 0.01 & 0.05\\
+\addlinespace
+1 & 1 & 6 & 211.15 & 825.60 & 0.14 & Ratio estimator & 15 & 2523.72 & 695086.32 & 55.04 & 0.08 & 0.00 & 0.03 & 0.36 & 0.35 & -2.54 & 0.04 & 0.16\\
+1 & 1 & 7 & 11936.99 & 30031685.58 & 0.46 & Ratio estimator & 15 & 2523.72 & 695086.32 & 2002112.37 & 4.73 & 4.18 & 2.05 & 0.43 & 0.41 & 1.47 & 1.93 & 9.77\\
+1 & 1 & 8 & 851.38 & 145756.80 & 0.45 & Ratio estimator & 15 & 2523.72 & 695086.32 & 9717.12 & 0.34 & 0.03 & 0.19 & 0.55 & 0.51 & -1.22 & 0.11 & 0.81\\
+1 & 1 & 9 & 4876.17 & 14812.20 & 0.02 & Ratio estimator & 15 & 2523.72 & 695086.32 & 987.48 & 1.93 & 0.41 & 0.64 & 0.33 & 0.32 & 0.61 & 0.97 & 3.45\\
+1 & 1 & 10 & 121.48 & 177.54 & 0.11 & Ratio estimator & 15 & 2523.72 & 695086.32 & 11.84 & 0.05 & 0.00 & 0.02 & 0.35 & 0.34 & -3.09 & 0.02 & 0.09\\
+\addlinespace
+1 & 1 & 11 & 267.11 & 3193.56 & 0.21 & Ratio estimator & 15 & 2523.72 & 695086.32 & 212.90 & 0.11 & 0.00 & 0.04 & 0.39 & 0.38 & -2.32 & 0.05 & 0.21\\
+1 & 1 & 12 & 18583.04 & 126166189.36 & 0.60 & Ratio estimator & 15 & 2523.72 & 695086.32 & 8411079.29 & 7.36 & 6.28 & 2.51 & 0.34 & 0.33 & 1.94 & 3.64 & 13.34\\
+1 & 1 & 13 & 180.87 & 4410.76 & 0.37 & Ratio estimator & 15 & 2523.72 & 695086.32 & 294.05 & 0.07 & 0.00 & 0.04 & 0.49 & 0.47 & -2.74 & 0.03 & 0.16\\
+1 & 1 & 14 & 154.75 & 5510.20 & 0.48 & Ratio estimator & 15 & 2523.72 & 695086.32 & 367.35 & 0.06 & 0.00 & 0.04 & 0.58 & 0.54 & -2.94 & 0.02 & 0.15\\
+1 & 1 & 15 & 236.60 & 13343.93 & 0.49 & Ratio estimator & 15 & 2523.72 & 695086.32 & 889.60 & 0.09 & 0.00 & 0.06 & 0.59 & 0.54 & -2.52 & 0.03 & 0.23\\
+\addlinespace
+1 & 2 & 1 & 59.05 & 354.72 & 0.32 & Ratio estimator & 15 & 430.51 & 18176.47 & 23.65 & 0.14 & 0.00 & 0.06 & 0.44 & 0.42 & -2.08 & 0.05 & 0.29\\
+1 & 2 & 2 & 59.46 & 162.43 & 0.21 & Ratio estimator & 15 & 430.51 & 18176.47 & 10.83 & 0.14 & 0.00 & 0.05 & 0.38 & 0.37 & -2.05 & 0.06 & 0.26\\
+1 & 2 & 3 & 113.21 & 2019.08 & 0.40 & Ratio estimator & 15 & 430.51 & 18176.47 & 134.61 & 0.26 & 0.02 & 0.13 & 0.50 & 0.47 & -1.45 & 0.09 & 0.59\\
+1 & 2 & 4 & 82.16 & 413.09 & 0.25 & Ratio estimator & 15 & 430.51 & 18176.47 & 27.54 & 0.19 & 0.01 & 0.08 & 0.40 & 0.38 & -1.73 & 0.08 & 0.38\\
+1 & 2 & 5 & 107.27 & 1430.85 & 0.35 & Ratio estimator & 15 & 430.51 & 18176.47 & 95.39 & 0.25 & 0.01 & 0.12 & 0.47 & 0.44 & -1.49 & 0.09 & 0.54\\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{ratio.est }\OtherTok{\textless{}{-}} \FunctionTok{here}\NormalTok{(}\StringTok{"data"}\NormalTok{, }\StringTok{"rds"}\NormalTok{, }\StringTok{"surv{-}prods"}\NormalTok{, }\StringTok{"ratio\_est"}\NormalTok{, }\StringTok{"scup"}\NormalTok{)}
+\FunctionTok{saveRDS}\NormalTok{(ratio\_ihat, }\FunctionTok{here}\NormalTok{(ratio.est, }\FunctionTok{str\_c}\NormalTok{(species, season, }\StringTok{"ratio\_estimator\_ihat.rds"}\NormalTok{, }\AttributeTok{sep =} \StringTok{"\_"}\NormalTok{)))}
+\end{Highlighting}
+\end{Shaded}
+
+Check
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{sq\_mu\_post }\OtherTok{\textless{}{-}} \FunctionTok{map2\_dfr}\NormalTok{(survdat\_sq, }\FunctionTok{seq\_along}\NormalTok{(survdat\_sq), }\ControlFlowTok{function}\NormalTok{(surv, pop\_num) \{}
+\NormalTok{  surv }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{as\_tibble}\NormalTok{() }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{filter}\NormalTok{(strat }\SpecialCharTok{\%in\%} \FunctionTok{unlist}\NormalTok{(strat), year }\SpecialCharTok{\%in\%} \DecValTok{6}\SpecialCharTok{:}\DecValTok{15}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{group\_by}\NormalTok{(}\AttributeTok{pop =}\NormalTok{ pop\_num, sim, year, strat) }\SpecialCharTok{|\textgreater{}}
+    \FunctionTok{summarise}\NormalTok{(}
+      \AttributeTok{towct =} \FunctionTok{n\_distinct}\NormalTok{(set),}
+      \AttributeTok{mu\_sq =} \FunctionTok{sum}\NormalTok{(n) }\SpecialCharTok{/}\NormalTok{ towct,}
+      \AttributeTok{var\_sq =} \FunctionTok{ifelse}\NormalTok{(towct }\SpecialCharTok{\textless{}} \DecValTok{2}\NormalTok{, }\DecValTok{0}\NormalTok{, }\FunctionTok{var}\NormalTok{(n)),}
+      \AttributeTok{.groups =} \StringTok{"drop"}
+\NormalTok{    )}
+\NormalTok{\})}
+
+\CommentTok{\#apply the ratio first, then calculate the corrected annual stratified index for years 6:15}
+\NormalTok{corrected\_sq\_post }\OtherTok{\textless{}{-}}\NormalTok{ sq\_mu\_post }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{left\_join}\NormalTok{(ratio\_tbl, }\AttributeTok{by =} \FunctionTok{c}\NormalTok{(}\StringTok{"pop"}\NormalTok{, }\StringTok{"sim"}\NormalTok{, }\StringTok{"strat"}\NormalTok{)) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{filter}\NormalTok{(}\SpecialCharTok{!}\FunctionTok{is.na}\NormalTok{(ratio)) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{left\_join}\NormalTok{(strata\_wts, }\AttributeTok{by =} \StringTok{"strat"}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{W =}\NormalTok{ Area\_SqNm }\SpecialCharTok{/}\NormalTok{ survey\_area,}
+    \AttributeTok{mu\_exp =}\NormalTok{ ratio }\SpecialCharTok{*}\NormalTok{ mu\_sq,}
+    \AttributeTok{var\_exp =}\NormalTok{ ratio}\SpecialCharTok{\^{}}\DecValTok{2} \SpecialCharTok{*}\NormalTok{ var\_sq,}
+    \AttributeTok{wt\_mu =}\NormalTok{ W }\SpecialCharTok{*}\NormalTok{ mu\_exp,}
+    \AttributeTok{wt\_var =} \FunctionTok{ifelse}\NormalTok{(towct }\SpecialCharTok{\textless{}} \DecValTok{2}\NormalTok{, }\DecValTok{0}\NormalTok{, (W}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{) }\SpecialCharTok{*}\NormalTok{ var\_exp }\SpecialCharTok{/}\NormalTok{ towct)}
+\NormalTok{  ) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{group\_by}\NormalTok{(pop, sim, year) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{summarise}\NormalTok{(}
+    \AttributeTok{stratmu =} \FunctionTok{sum}\NormalTok{(wt\_mu, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{),}
+    \AttributeTok{stratvar =} \FunctionTok{sum}\NormalTok{(wt\_var, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{),}
+    \AttributeTok{cv =} \FunctionTok{sqrt}\NormalTok{(stratvar) }\SpecialCharTok{/}\NormalTok{ stratmu,}
+    \AttributeTok{.groups =} \StringTok{"drop"}
+\NormalTok{  ) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{scenario =} \StringTok{"Check"}
+\NormalTok{  )}
+
+
+\CommentTok{\# years 1:5 }
+\NormalTok{corrected\_sq\_pre }\OtherTok{\textless{}{-}}\NormalTok{ stratmean\_sq\_all }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{filter}\NormalTok{(year }\SpecialCharTok{\%in\%} \DecValTok{1}\SpecialCharTok{:}\DecValTok{5}\NormalTok{) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{select}\NormalTok{(pop, sim, year, stratmu, stratvar, cv, scenario) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{scenario =} \StringTok{"Check"}
+\NormalTok{  )}
+
+\CommentTok{\# combine full 1:15 time series before calculating relative index}
+\NormalTok{corrected\_sq\_all }\OtherTok{\textless{}{-}} \FunctionTok{bind\_rows}\NormalTok{(corrected\_sq\_pre, corrected\_sq\_post) }\SpecialCharTok{|\textgreater{}}
+  \FunctionTok{arrange}\NormalTok{(pop, sim, year)}
+
+
+\CommentTok{\# corrected ihat}
+\NormalTok{ratio\_ihat\_check }\OtherTok{\textless{}{-}}\NormalTok{ corrected\_sq\_all }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(pop, sim) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{n\_years =} \FunctionTok{n\_distinct}\NormalTok{(year),}
+    \AttributeTok{mean\_ihat =} \FunctionTok{mean}\NormalTok{(stratmu, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{),}
+    \AttributeTok{var\_mean\_ihat =} \FunctionTok{sum}\NormalTok{(stratvar, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{) }\SpecialCharTok{/}\NormalTok{ (n\_years}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{),}
+    \AttributeTok{cov\_stratmu\_mean =}\NormalTok{ stratvar }\SpecialCharTok{/}\NormalTok{ n\_years,}
+    \AttributeTok{rel\_ihat =}\NormalTok{ stratmu }\SpecialCharTok{/}\NormalTok{ mean\_ihat,}
+    \AttributeTok{rel\_var =}
+\NormalTok{      (stratvar }\SpecialCharTok{/}\NormalTok{ (mean\_ihat}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{)) }\SpecialCharTok{+}
+\NormalTok{      ((stratmu}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{) }\SpecialCharTok{*}\NormalTok{ var\_mean\_ihat }\SpecialCharTok{/}\NormalTok{ (mean\_ihat}\SpecialCharTok{\^{}}\DecValTok{4}\NormalTok{)) }\SpecialCharTok{{-}}
+\NormalTok{      (}\DecValTok{2} \SpecialCharTok{*}\NormalTok{ stratmu }\SpecialCharTok{*}\NormalTok{ cov\_stratmu\_mean }\SpecialCharTok{/}\NormalTok{ (mean\_ihat}\SpecialCharTok{\^{}}\DecValTok{3}\NormalTok{)),}
+    \AttributeTok{rel\_se =} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{pmax}\NormalTok{(rel\_var, }\DecValTok{0}\NormalTok{)),}
+    \AttributeTok{rel\_cv =}\NormalTok{ rel\_se }\SpecialCharTok{/}\NormalTok{ rel\_ihat,}
+    \AttributeTok{rel\_log\_sd =} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{log}\NormalTok{(}\DecValTok{1} \SpecialCharTok{+}\NormalTok{ rel\_cv}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{)),}
+    \AttributeTok{rel\_log\_mean =} \FunctionTok{log}\NormalTok{(rel\_ihat) }\SpecialCharTok{{-}} \FloatTok{0.5} \SpecialCharTok{*}\NormalTok{ rel\_log\_sd}\SpecialCharTok{\^{}}\DecValTok{2}\NormalTok{,}
+    \AttributeTok{rel\_ci\_lower =} \FunctionTok{qlnorm}\NormalTok{(}\FloatTok{0.025}\NormalTok{, }\AttributeTok{meanlog =}\NormalTok{ rel\_log\_mean, }\AttributeTok{sdlog =}\NormalTok{ rel\_log\_sd),}
+    \AttributeTok{rel\_ci\_upper =} \FunctionTok{qlnorm}\NormalTok{(}\FloatTok{0.975}\NormalTok{, }\AttributeTok{meanlog =}\NormalTok{ rel\_log\_mean, }\AttributeTok{sdlog =}\NormalTok{ rel\_log\_sd)}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{ungroup}\NormalTok{()}
+\end{Highlighting}
+\end{Shaded}
+
+
+\end{document}
