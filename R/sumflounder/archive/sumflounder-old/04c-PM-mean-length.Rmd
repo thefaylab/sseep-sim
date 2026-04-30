@@ -1,0 +1,117 @@
+---
+title: "Performance measure: mean length"
+author: "Angelia Miller"
+date: "2023-07-25"
+output: html_document
+---
+
+## Objective 
+Script will calculate the bias and precision around the stratified mean length measured/collected by the BTS survey.
+
+Output: bias and precision of mean length, adequacy of coverage of length distribution
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(raster)
+library(SimSurvey)
+suppressPackageStartupMessages(library(tidyverse))
+library(data.table)
+library(patchwork)
+library(here)
+```
+
+```{r load data, include = FALSE}
+# read in survey data 
+surv_dat <- readRDS(here("R", "sumflounder", "data", "sumflounder_survdat.rds"))
+
+# read in the area weights for each strata 
+strata_wts <- readRDS(here(sseep.analysis, "data", "rds", "active_strata_wts.rds")) |>
+  rename(strat = STRATUM)
+
+# find the total survey area 
+BTSArea <- as.integer(sum(strata_wts$Area_SqNm))
+```
+
+
+```{r data wrangle, include = FALSE}
+#extract data and merge together to obtain lengths in taken in a given strata
+setdet <- surv_dat$setdet |> as_tibble()
+samp <- surv_dat$samp |> as_tibble()
+data <- full_join(setdet, samp, by = "set") 
+```
+
+## Calculate the stratified mean length
+```{r}
+estL_ind <- data |>
+    group_by(strat, year, sim) |>
+    dplyr::summarise(towct = length(set), # calculate unique tows
+              mu = sum(length, na.rm = TRUE)/towct, # find the average biomass based on unique tows rather than observations to avoid potential duplication
+              var = ifelse(towct == 1, 0, # if the tow count equals 1, then variance about the mean should be 0
+                           sum((length - mu)^2, na.rm = TRUE)/(towct - 1)), 
+              .groups = "keep") # if tow count does not equal 1, then find the variance of biomass
+
+# caluclate the weighted average by multiplying by each stratas proportional area
+estL_wtd <- estL_ind |>
+    left_join(strata_wts, by = "strat") |> # add each stratum area and relative weight to the dataset based on STRATUM number
+      group_by(strat, year, sim) |>
+    mutate(wt_mu = Area_SqNm * mu, # part one of the stratified mean formula
+           wt_var = ((((RelWt)^2) * var) / towct) * (1 - (towct / Area_SqNm)), 
+           wt_var = ifelse(is.na(wt_var), 0, wt_var)) 
+           # part one of the stratified variance formula
+
+# calculated the stratified average and the standard deviations around the average 
+estL_strat <- estL_wtd  |>
+    group_by(year, sim) |>
+    summarise(stratmu = (sum(wt_mu)) / BTSArea, # part two of the stratified mean formula
+              stratvar = sum(wt_var), .groups = "keep") |>
+  mutate(sdlog = sqrt(log(1+(sqrt(stratvar)/stratmu)^2)), #logistic standard deviation
+         lower = qlnorm(0.025, log(stratmu), sdlog), # lower quantile of the logistic normal distribution
+         upper = qlnorm(0.975, log(stratmu), sdlog)) |> # upper quantile of the logistic normal distribution
+  mutate(sdlog = ifelse(is.nan(sdlog), 0, sdlog), # if sdlog is NaN, replace with 0
+         lower = ifelse(is.nan(lower), 0, lower), # if the lower quantile is NaN, replace with 0
+         upper = ifelse(is.nan(upper), 0, upper))
+
+estL_strat
+
+```
+
+Plot of the stratified mean length over time
+```{r}
+ggplot() +
+  geom_pointrange(data = estL_strat, aes(x = as.factor(year), y = stratmu, color = as.factor(sim), ymin=lower, ymax = upper), position = position_dodge2(width=0.4)) +
+  labs(x = "Year", y = "Stratified Length", color = "Simulation", 
+       title = "Stratified Mean Length") +
+  #ylim(0,NA) +
+  theme_bw() 
+```
+
+
+## Average sampling error for mean length
+```{r}
+estL_n <- length(samp$length)
+
+estL_se <- estL_strat |> 
+  group_by(year, sim) |> 
+  summarise(stratsd = sqrt(stratvar), 
+            samp_err = 1.96*(stratsd / sqrt(estL_n)))
+
+estL_se |> 
+  group_by(sim) |>
+  summarise(avg_se = mean(samp_err))
+
+```
+
+
+## Adequacy of coverage of length distribution
+```{r}
+ggplot() +
+  geom_histogram(data = samp, aes(x = length)) +
+  theme_bw() 
+```
+
+
+```{r save data, include = FALSE}
+# saveRDS(estL_strat, here("R", "sumflounder", "data", "sumflounder_estL-strat.rds"))
+
+```

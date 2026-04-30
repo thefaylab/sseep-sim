@@ -72,7 +72,7 @@ plots <- here("outputs", "plots")
 
 ```{r}
 species <- "summerflounder"
-season  <- "fall"
+season  <- "spring"
 ages      <- 0:7
 years     <- 1:15
 nsims   <- 1:100

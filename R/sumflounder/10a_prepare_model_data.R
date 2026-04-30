@@ -2,7 +2,6 @@
 library(sf)
 
 
-
 # Directories
 sseep.analysis <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis"
 dist.dat <- here("data", "rds", "dists")
@@ -26,7 +25,6 @@ chunks <- split(nsims, ceiling(nsims / chunk_size))
 
 
 #Load surveys
-#survdat_sq <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_sq_survey.rds", species, season, .x))))
 survdat_sq <- map(ids, function(id) {
   x <- readRDS(here(survdat, sprintf("%s_%s_%s_25_sq_survey.rds",
                                      species, season, id)))
@@ -61,13 +59,6 @@ survdat_sq_ll <- lapply(survdat_sq, function(df) {
   return(df)
 })
 
-survdat_precl_ll <- lapply(survdat_precl, function(df) {
-  df <- as.data.frame(df)
-  df <- add_latlon(df)        # append lon/lat
-  return(df)
-})
-
-
 
 
 tb_sq <- map2_dfr(survdat_sq_ll, seq_along(survdat_sq_ll), function(surv, pop_num) {
@@ -90,27 +81,6 @@ tb_sq <- map2_dfr(survdat_sq_ll, seq_along(survdat_sq_ll), function(surv, pop_nu
 })
 
 
-tb_precl <- map2_dfr(survdat_precl_ll, seq_along(survdat_precl_ll), function(surv, pop_num) {
-  surv |>
-    as_tibble() |>
-    filter(strat %in% unlist(strat)) |>
-    group_by(sim, year, strat) |>
-    left_join(strata_wts, by = "strat")|>
-    mutate(scenario = "Preclusion",
-           pop = pop_num,
-           SEASON = "FALL") |>
-    rename(YEAR = year,
-           X = x,
-           Y = y,
-           DECDEG_LAT = lat,
-           DECDEG_LON = lon,
-           AVGDEPTH = depth,
-           STRATUM = strat) |>
-    select(set,sim,YEAR,STRATUM,AVGDEPTH,X,Y,DECDEG_LAT,DECDEG_LON,cell,AREA_CODE,N,n,scenario,pop,SEASON)
-})
-
-
-
 
 #plot data
 tb_sq1 <- tb_sq |> filter(pop==1, sim==1)
@@ -124,17 +94,6 @@ ggplot(tb_sq1, aes(x = X, y = Y)) +
   theme_minimal()
 
 
-tb_precl1 <- tb_precl |> filter(pop==1, sim==1)
-ggplot(tb_precl1, aes(x = X, y = Y)) +
-  geom_point(aes(color = n), size = 1.8) +
-  scale_color_viridis_c(option = "plasma", trans = "log1p") +  # log transform for better visual spread
-  coord_fixed() +
-  labs(title = "Abundance per Tow (N)",
-       subtitle = "Preclusion Scenario",
-       color = "Abundance (N)") +
-  theme_minimal()
-
-
 ##LOOP to filter by pop and sim
 for (p in unique(tb_sq$pop)) {
   for (s in unique(tb_sq$sim)) {
@@ -142,41 +101,10 @@ for (p in unique(tb_sq$pop)) {
     # Subset data
     sub <- tb_sq %>%
       filter(pop == p, sim == s)
-
     file_name <- sprintf("sq_pop%03d_sim%02d.rds", p, s)
     file_path <- file.path(mods.data, file_name) # Save full path
     write_rds(sub, file_path, compress = "gz")  # Write to disk
   }
 }
-
-for (p in 1:5) {
-  for (s in 1:25) {
-
-    # Subset data
-    sub <- tb_sq %>%
-      filter(pop == p, sim == s)
-
-    file_name <- sprintf("sq_pop%03d_sim%02d.rds", p, s)
-    file_path <- file.path(mods.data, file_name)
-
-    write_rds(sub, file_path, compress = "gz")
-  }
-}
-
-
-
-for (p in unique(tb_precl$pop)) {
-for (s in unique(tb_precl$sim)) {
-
-    # Subset data
-    sub <- tb_precl %>%
-      filter(pop == p, sim == s)
-
-    file_name <- sprintf("precl_pop%03d_sim%02d.rds", p, s)
-    file_path <- file.path(mods.data, file_name) # Save full path
-    write_rds(sub, file_path, compress = "gz")  # Write
-  }
-}
-
 
 

@@ -1,0 +1,359 @@
+#Ratio Estimator"
+#author: "Catalina Roman"
+#date: "2026-03-31"
+
+# OBJECTIVE
+
+#For a given species, calculate a ratio estimator as a potential mitigation approach to adjust for the loss of sampling coverage caused by offshore wind energy development.
+
+#Outputs: abundance indices adjusted with the ratio for each population and simulation of the projection.
+
+# METHODOLOGY
+
+
+# PACKAGES
+
+library(tidyverse)
+library(here)
+library(sdmTMB)
+source(here("R", "sim_stratmean_fn.R"))
+library(kableExtra)
+
+
+# DATA SET UP
+## Directories
+sseep.analysis <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis"
+dist.dat <- here("data", "rds", "dists")
+survdat <- here("data", "rds", "survdat")
+surv.prods <- here("data", "rds", "surv-prods")
+plots <- here("outputs", "plots")
+
+## Parameters
+species <- "summerflounder"
+season  <- "fall"
+ages      <- 0:7
+years     <- 1:15
+nsims   <- 1:100
+ids     <- sprintf("%03d", nsims)
+
+## Data
+#survdat_sq <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_sq_survey.rds", species, season, .x))))
+survdat_sq <- map(ids, function(id) {
+  x <- readRDS(here(survdat, sprintf("%s_%s_%s_25_sq_survey.rds",
+                                     species, season, id)))
+  out <- x$setdet #loas only setdet data
+  rm(x); gc()
+  out
+})
+
+survdat_precl <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_precl_survey.rds", species, season, .x))))
+dist <- map(ids, ~readRDS(here(dist.dat, sprintf("%s_%s_%s_dist-only.rds", species, season, .x))))
+
+
+# Area weights for each strata
+strata_wts <- readRDS(here(sseep.analysis, "data", "rds", "active_strata_wts.rds")) |>
+  rename(strat = STRATUM)
+
+# Total survey area
+survey_area <- as.integer(sum(strata_wts$Area_SqNm))
+
+# ABUNDANCE INDEX
+## Status Quo Survey
+#extract the strata that were used to predict spatial distributions in sdmTMB
+
+strat <- map(dist, ~unique(.$strat))
+
+source(here("R/stratmean_fn.R"))
+
+stratmean_sq_all <- calc_stratmean(
+  surv_list = survdat_sq,
+  strata_wts = strata_wts,
+  survey_area = survey_area,
+  scenario_name = "Status Quo",
+  value_col = "n"
+)
+
+# Group by pop (and sim if needed) to compute rel_ihat within each population
+ihat_sq_all <- stratmean_sq_all |>
+  group_by(pop, sim) |> #Calculations are done within each population realization
+  #(pop) and survey replicate (sim)
+  mutate(
+    n_years = n_distinct(year), #counts the number of unique years -
+    #needed to compute cariance of the mean across years
+    mean_ihat = mean(stratmu, na.rm = TRUE), #average index across years
+
+    # variance of the mean over years - assuming years are independent
+    var_mean_ihat = sum(stratvar, na.rm = TRUE) / (n_years^2),
+
+    # covariance between each annual stratified mean and the mean over years
+    cov_stratmu_mean = stratvar / n_years,
+
+    # relative abundance index - standardizes each year relative to the average
+    rel_ihat = stratmu / mean_ihat,
+
+    # delta-method variance for rel_ihat = stratmu / mean_ihat (Lohr, 2019 Ch9)
+    rel_var =
+      (stratvar / (mean_ihat^2)) +
+      ((stratmu^2) * var_mean_ihat / (mean_ihat^4)) -
+      (2 * stratmu * cov_stratmu_mean / (mean_ihat^3)),
+
+    rel_se = sqrt(pmax(rel_var,0)), #standard error of estimator
+    rel_cv = rel_se / rel_ihat, #coefficient of variation
+
+    rel_log_sd = sqrt(log(1 + rel_cv^2)), #convert the CV into the lognormal SD parameter
+    rel_log_mean = log(rel_ihat) - 0.5 * rel_log_sd^2,
+
+    rel_ci_lower = qlnorm(0.025, meanlog = rel_log_mean, sdlog = rel_log_sd),
+    rel_ci_upper = qlnorm(0.975, meanlog = rel_log_mean, sdlog = rel_log_sd)
+  ) %>%
+  ungroup()
+
+
+## Status quo stratum means (baseline)
+
+sq_mu_y <- map2_dfr(survdat_sq, seq_along(survdat_sq), function(surv, pop_num) {
+  surv |>
+    as_tibble() |>
+    filter(strat %in% unlist(strat), year %in% 1:5) |>
+    group_by(pop = pop_num, sim, year, strat) |>
+    summarise(
+      towct_sq = n_distinct(set),
+      mu_sq = sum(n) / towct_sq,
+      .groups = "drop"
+    )
+})
+
+# sq_mu_y |>
+#   dplyr::slice_head(n = 20) |>
+#   knitr::kable(format="latex", booktabs=TRUE, digits=2,
+#                caption = "Status Quo mean years 1-5 (first 20 rows)") |>
+#   kableExtra::kable_styling(latex_options = c("H"), font_size = 8)
+
+## Preclusion Survey
+min_tows <- 3
+
+# find strata that actually have enough tows
+valid_strata <- map_dfr(survdat_precl, ~as_tibble(.x)) |>
+  filter(year %in% 6:15) |>
+  group_by(strat) |>
+  summarise(towct = n_distinct(set), .groups = "drop") |>
+  filter(towct >= min_tows) |>
+  pull(strat)
+
+# filter survey data
+survdat_precl_filt <- map(survdat_precl, ~
+                            as_tibble(.x) |>
+                            filter(strat %in% valid_strata)
+)
+
+# filter weights + recompute area
+strata_wts_filt <- strata_wts |>
+  filter(strat %in% valid_strata)
+
+survey_area_filt <- sum(strata_wts_filt$Area_SqNm, na.rm = TRUE)
+
+
+# years 1:5: same domain as status quo
+survdat_precl_y1_5 <- map(survdat_precl, ~
+                            as_tibble(.x) |>
+                            filter(year %in% 1:5)
+)
+
+stratmean_precl_y1_5 <- calc_stratmean(
+  surv_list     = survdat_precl_y1_5,
+  strata_wts    = strata_wts,
+  survey_area   = survey_area,
+  scenario_name = "Preclusion",
+  value_col     = "n",
+  years         = 1:5
+)
+
+# years 6:15: filter to strata still present under preclusion
+survdat_precl_y6_15 <- map(survdat_precl, ~
+                             as_tibble(.x) |>
+                             filter(year %in% 6:15)
+)
+
+stratmean_precl_y6_15 <- calc_stratmean(
+  surv_list     = survdat_precl_y6_15,
+  strata_wts    = strata_wts_filt,
+  survey_area   = survey_area_filt,
+  scenario_name = "Preclusion",
+  value_col     = "n",
+  years         = 6:15
+)
+
+#merge
+stratmean_precl_all <- bind_rows(stratmean_precl_y1_5, stratmean_precl_y6_15) |>
+  arrange(pop, sim, year)
+
+
+# Group to compute rel_ihat
+ihat_precl_all <- stratmean_precl_all |>
+  group_by(pop, sim) |>
+  mutate(
+    n_years = n_distinct(year),
+    mean_ihat = mean(stratmu, na.rm = TRUE),
+    var_mean_ihat = sum(stratvar, na.rm = TRUE) / (n_years^2),
+    cov_stratmu_mean = stratvar / n_years,
+    rel_ihat = stratmu / mean_ihat,
+    rel_var =
+      (stratvar / (mean_ihat^2)) +
+      ((stratmu^2) * var_mean_ihat / (mean_ihat^4)) -
+      (2 * stratmu * cov_stratmu_mean / (mean_ihat^3)),
+    rel_se = sqrt(pmax(rel_var,0)),
+    rel_cv = rel_se / rel_ihat,
+    rel_log_sd = sqrt(log(1 + rel_cv^2)),
+    rel_log_mean = log(rel_ihat) - 0.5 * rel_log_sd^2,
+    rel_ci_lower = qlnorm(0.025, meanlog = rel_log_mean, sdlog = rel_log_sd),
+    rel_ci_upper = qlnorm(0.975, meanlog = rel_log_mean, sdlog = rel_log_sd)
+  ) %>%
+  ungroup()
+
+
+# ihat_precl_all |>
+#   dplyr::slice_head(n = 20) |>
+#   knitr::kable(format="latex", booktabs=TRUE, digits=2,
+#                caption = "Preclusion Abundance Index (first 20 rows)") |>
+#   kableExtra::kable_styling(latex_options = c("hold_position", "scale_down"))
+
+## Preclusion stratum means for baseline
+
+precl_mu_y <- map2_dfr(survdat_sq, seq_along(survdat_sq), function(surv, pop_num) {
+  surv |>
+    as_tibble() |>
+    filter(strat %in% unlist(strat), year %in% 1:5, AREA_CODE != 1) |>
+    group_by(pop = pop_num, sim, year, strat) |>
+    summarise(
+      towct_precl = n_distinct(set),
+      mu_precl = sum(n) / towct_precl,
+      .groups = "drop"
+    )
+})
+
+# precl_mu_y |>
+#   dplyr::slice_head(n = 20) |>
+#   knitr::kable(format="latex", booktabs=TRUE, digits=2,
+#                caption = "Preclusion mean years 1-5 (first 20 rows)") |>
+#   kableExtra::kable_styling(latex_options = c("H"), font_size = 8)
+
+
+# Ratio calculation (y_tot/y_preclusion)
+
+min_tows_ratio <- 3
+
+ratio_y_tbl <- sq_mu_y |>
+  left_join(precl_mu_y, by = c("pop", "sim", "year", "strat")) |>
+  filter(year %in% 1:5) |>
+  mutate(
+    ratio_y = if_else(
+      towct_precl >= 3 & !is.na(mu_precl) & mu_precl > 0,
+      mu_sq / mu_precl,
+      NA_real_
+    )
+  )
+
+ratio_tbl <- ratio_y_tbl |>
+  group_by(pop, sim, strat) |>
+  summarise(
+    ratio = mean(ratio_y, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# ratio_tbl |>
+#   dplyr::slice_head(n = 20) |>
+#   knitr::kable(format="latex", booktabs=TRUE, digits=2,
+#                caption = "Ratio (first 20 rows)") |>
+#   kableExtra::kable_styling(latex_options = c("H"), font_size = 8)
+#
+#
+# ratio_tbl |> filter(strat == 1050, sim==1, pop==1)
+
+
+
+# Calculate corrected index
+#obtain projected years means
+precl_mu_post <- map2_dfr(survdat_precl, seq_along(survdat_precl), function(surv, pop_num) {
+  surv |>
+    as_tibble() |>
+    filter(strat %in% unlist(strat), year %in% 6:15, AREA_CODE != 1) |>
+    group_by(pop = pop_num, sim, year, strat) |>
+    summarise(
+      towct = n_distinct(set),
+      mu_precl = sum(n) / towct,
+      var_precl = ifelse(towct < 2, 0, var(n)),
+      .groups = "drop"
+    )
+})
+
+#apply the ratio first, then calculate the corrected annual stratified index for years 6:15
+corrected_precl_post <- precl_mu_post |>
+  left_join(ratio_tbl, by = c("pop", "sim", "strat")) |>
+  filter(!is.na(ratio)) |>
+  left_join(strata_wts, by = "strat") |>
+  mutate(
+    W = Area_SqNm / survey_area,
+    mu_exp = ratio * mu_precl,
+    var_exp = ratio^2 * var_precl,
+    wt_mu = W * mu_exp,
+    wt_var = ifelse(towct < 2, 0, (W^2) * var_exp / towct)
+  ) |>
+  group_by(pop, sim, year) |>
+  summarise(
+    stratmu = sum(wt_mu, na.rm = TRUE),
+    stratvar = sum(wt_var, na.rm = TRUE),
+    cv = sqrt(stratvar) / stratmu,
+    .groups = "drop"
+  ) |>
+  mutate(
+    scenario = "Ratio estimator"
+  )
+
+
+# years 1:5 must match the uncorrected baseline, use status quo as reference series
+corrected_precl_pre <- stratmean_sq_all |>
+  filter(year %in% 1:5) |>
+  select(pop, sim, year, stratmu, stratvar, cv, scenario) |>
+  mutate(
+    scenario = "Ratio estimator"
+  )
+
+# combine full 1:15 time series before calculating relative index
+corrected_precl_all <- bind_rows(corrected_precl_pre, corrected_precl_post) |>
+  arrange(pop, sim, year)
+
+
+# corrected ihat
+ratio_ihat <- corrected_precl_all %>%
+  group_by(pop, sim) %>%
+  mutate(
+    n_years = n_distinct(year),
+    mean_ihat = mean(stratmu, na.rm = TRUE),
+    var_mean_ihat = sum(stratvar, na.rm = TRUE) / (n_years^2),
+    cov_stratmu_mean = stratvar / n_years,
+    rel_ihat = stratmu / mean_ihat,
+    rel_var =
+      (stratvar / (mean_ihat^2)) +
+      ((stratmu^2) * var_mean_ihat / (mean_ihat^4)) -
+      (2 * stratmu * cov_stratmu_mean / (mean_ihat^3)),
+    rel_se = sqrt(pmax(rel_var, 0)),
+    rel_cv = rel_se / rel_ihat,
+    rel_log_sd = sqrt(log(1 + rel_cv^2)),
+    rel_log_mean = log(rel_ihat) - 0.5 * rel_log_sd^2,
+    rel_ci_lower = qlnorm(0.025, meanlog = rel_log_mean, sdlog = rel_log_sd),
+    rel_ci_upper = qlnorm(0.975, meanlog = rel_log_mean, sdlog = rel_log_sd)
+  ) %>%
+  ungroup()
+
+
+# ratio_ihat |>
+#   dplyr::slice_head(n = 20) |>
+#   knitr::kable(format="latex", booktabs=TRUE, digits=2,
+#                caption = "Ratio estimator (first 20 rows)") |>
+#   kableExtra::kable_styling(latex_options = c("hold_position", "scale_down"))
+
+
+ratio.est <- here("data", "rds", "surv-prods", "ratio_est", "summerflounder")
+saveRDS(ratio_ihat, here(ratio.est, str_c(species, season, "ratio_estimator_ihat.rds", sep = "_")))
+
+
