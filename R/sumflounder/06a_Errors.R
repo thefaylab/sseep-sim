@@ -40,7 +40,7 @@ nsurveys <- 25
 #Indices
 
 # relative true abundance created here("R", "05_calculate_rel_abundance.R")
-trueN <- readRDS(here(surv.prods, str_c(species, season, "rel-TrueN-100pops.rds", sep = "_")))
+trueN <- readRDS(here(surv.prods, str_c(species, season, "TrueN.rds", sep = "_")))
 
 # relative abunance indices across scenarios created here("R", "05_calculate_rel_abundance.R")
 indices <- readRDS(here(surv.prods, str_c(species, season, "indices.rds", sep = "_")))
@@ -60,15 +60,12 @@ errors <- indices %>%
 # relative error plot
 
 errors_plot <- errors %>%
-  filter((scenario == "Status Quo") | (scenario %in% c("Preclusion", "Reallocation", "Ratio estimator", "Model based") & year >= 6)) |>
-  mutate(scenario = factor(scenario, levels = c("Status Quo", "Preclusion", "Reallocation", "Ratio estimator", "Model based")))
+  filter((scenario == "Status Quo") | (scenario %in% c("Preclusion", "Reallocation",
+                                                       "Ratio estimator", "Model based","Model based wind") & year >= 6)) |>
+  mutate(scenario = factor(scenario, levels = c("Status Quo", "Preclusion", "Reallocation",
+                                                "Ratio estimator", "Model based", "Model based wind")))
 
 
-library(NatParksPalettes)
-
-torres <- natparks.pals("Torres")
-torres
-torres5 <- torres[c(1,2,3,7,10)]
 
 RelErrBoxPlot <- ggplot(errors_plot, aes(x = , y = rel_err, fill = scenario)) +
   geom_boxplot(position = position_dodge(width = 0.8),
@@ -77,11 +74,14 @@ RelErrBoxPlot <- ggplot(errors_plot, aes(x = , y = rel_err, fill = scenario)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "#535260", linewidth = 1) +
   labs(title = "", subtitle = "Summerflounder - Fall",
        x = NULL, y = "Relative Error", fill = "Scenario") +
-  scale_fill_manual(values = c("Status Quo"   = "#2F397A",
-                               "Preclusion"   = "#7391BD",
-                               "Reallocation" = "#894846",
-                               "Ratio estimator" = "#785838",
-                               "Model based" = "#93995C")) +
+  scale_fill_manual(values = c(
+    "Status Quo"       = "#9B5F6B",
+    "Preclusion"       = "#8C2B0E",
+    "Reallocation"     = "#C5692D",
+    "Ratio estimator"  = "#D9A441",
+    "Model based"      = "#A7C957",
+    "Model based wind" = "#275E4D"
+  )) +
   theme(text = element_text(size = 20),
         axis.title = element_text(size = 20),
         axis.title.x = element_blank(),
@@ -108,11 +108,14 @@ AbsRelErrBoxPlot <- ggplot(errors_plot, aes(x = , y = rel_err, fill = scenario))
   #  geom_hline(yintercept = 0, linetype = "dashed", color = "chocolate4", linewidth = 1) +
   labs(title = "Distribution of Absolute Relative Errors", subtitle = "Summerflounder - Fall",
        x = NULL, y = "Absolute Relative Error", fill = "Scenario") +
-  scale_fill_manual(values = c("Status Quo"   = "#2F397A",
-                               "Preclusion"   = "#7391BD",
-                               "Reallocation" = "#894846",
-                               "Ratio estimator" = "#785838",
-                               "Model based" = "#93995C")) +
+  scale_fill_manual(values = c(
+    "Status Quo"       = "#9B5F6B",
+    "Preclusion"       = "#8C2B0E",
+    "Reallocation"     = "#C5692D",
+    "Ratio estimator"  = "#D9A441",
+    "Model based"      = "#A7C957",
+    "Model based wind" = "#275E4D"
+  )) +
   theme(text = element_text(size = 14),
         axis.title = element_text(size = 14),
         axis.title.x = element_blank(),
