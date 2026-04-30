@@ -151,15 +151,19 @@ saveRDS(fixed_inside, here("data", "rds", "survdat", "inside_fixed_locs_survey.r
 ### BLOCK 2: RUN SUPPLEMENTAL SURVEY (fixed stations inside wind areas)
 
 # a) Survey configuration
-supp_trawl_dim <- c(1.8, 0.010)   # smaller trawl
+supp_trawl_dim <- c(2.7, 0.014)   # smaller trawl
 supp_catch_q   <- sim_logistic(k = 2, x0 = 2.5) #logistic, different as used for scup in SQ survey
+
+#source(here("R/selectivity_fns.R"))
+#supp_catch_q = force_sim_logistic(k = -0.66, x0 = -1.14, plot = TRUE, force_age = TRUE, age = 0, force_sel = 1)
+#(selectivity_values <- q(ages))
 
 
 # b) Define chunking
 chunk_size <- 20
 chunks <- split(nsims, ceiling(nsims / chunk_size))
 
-chunk_id <- 1 #change from 1 to 5
+chunk_id <- 5 #change from 1 to 5
 this_chunk <- chunks[[chunk_id]]
 
 
@@ -187,8 +191,8 @@ for (i in this_chunk) {
   )
 
   # Save result
-  saveRDS(survey_fixed, here(survdat, sprintf("%s_%s_%03d_%d_supplemental_survey.rds", species, season, i, nsurveys)))
-  message(sprintf("  Saved supplemental survey for population %03d.", i))
+  saveRDS(survey_fixed, here(survdat, sprintf("%s_%s_%03d_%d_supplemental_survey_neamap.rds", species, season, i, nsurveys)))
+  message(sprintf("Saved supplemental survey for population %03d.", i))
 }
 
 
@@ -264,7 +268,7 @@ for (i in this_chunk) {
 
 ### BLOCK 3: Arrange HYBRID survey (preclusion + supplemental)
 # a) Define chunking
-chunk_size <- 20
+chunk_size <- 100
 chunks <- split(nsims, ceiling(nsims / chunk_size))
 chunk_id <- 1 #change from 1 to 5
 this_chunk <- chunks[[chunk_id]]
@@ -276,18 +280,44 @@ this_chunk <- chunks[[chunk_id]]
 
    #Load objects ---
    precl_survey <- readRDS(here(survdat,sprintf("%s_%s_%03d_%d_precl_survey.rds",species, season, i, nsurveys)))
-   suppl_survey <- readRDS(here(survdat,sprintf("%s_%s_%03d_%d_supplemental_survey.rds",species, season, i, nsurveys)))
+   suppl_survey <- readRDS(here(survdat,sprintf("%s_%s_%03d_%d_supplemental_survey_neamap.rds",species, season, i, nsurveys)))
 
    # Combine both survey outputs, Keep only the setdet table from each
    survey_hybrid <- dplyr::bind_rows(precl_survey, suppl_survey$setdet)
 
    # Save
-   saveRDS(survey_hybrid,here(survdat,sprintf("%s_%s_%03d_%d_hybrid_survey.rds",species, season, i, nsurveys)))
+   saveRDS(survey_hybrid,here(survdat,sprintf("%s_%s_%03d_%d_hybrid_survey_neamap.rds",species, season, i, nsurveys)))
 
    message(sprintf("Saved HYBRID survey for population %03d (%d rows total)",i, nrow(survey_hybrid)))
  }
 
 
+
+#Combine with differentiation of survey sources
+for (i in this_chunk) {
+  message(sprintf("preclusion + supplemental survey for population %03d of chunk %d...", i, chunk_id))
+
+# Load objects
+precl_survey <- readRDS(here(survdat, sprintf("%s_%s_%03d_%d_precl_survey.rds",
+                                              species, season, i, nsurveys)))
+suppl_survey <- readRDS(here(survdat, sprintf("%s_%s_%03d_%d_supplemental_survey_neamap.rds",
+                                              species, season, i, nsurveys)))
+
+# Tag origin BEFORE combining
+precl_survey <- precl_survey %>%
+  dplyr::mutate(survey_type = "standard_precl")
+
+suppl_setdet <- suppl_survey$setdet %>%
+  dplyr::mutate(survey_type = "supplemental_fixed")
+
+# Combine
+survey_hybrid <- dplyr::bind_rows(precl_survey, suppl_setdet)
+
+# Save
+saveRDS(survey_hybrid, here(survdat, sprintf("%s_%s_%03d_%d_hybrid_survey_neamap2.rds",
+                                             species, season, i, nsurveys)))
+
+}
 
 # Optional check + viz
 # ##make sure that preclusion survey is being added properly to the "hybrid" survey

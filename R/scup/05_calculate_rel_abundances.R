@@ -106,13 +106,6 @@ ggplot(trueN_stat, aes(x = year, y = mean_rel_N)) +
   theme_bw()
 
 
-ggplot(trueN_stat, aes(x = year, y = mean_N)) +
-  geom_line(color = "black", linewidth = 1) +  # Line for mean abundance
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), fill = "lightgray", alpha = 0.5) +  # Confidence interval
-  labs(title = "True abundance", x = "Year", y = "True Abundance (N)") +
-  theme_minimal(base_size = 14)
-
-
 
 
 
@@ -347,7 +340,7 @@ saveRDS(ihat_reall_all, here(surv.prods, str_c(species, season, "100pops-25sims-
 
 
 #Read ratio est and model based
-trueN <- readRDS(here(surv.prods, str_c(species, season, "all-ihat-surveys.rds", sep="_")))
+trueN <- readRDS(here(surv.prods, str_c(species, season, "TrueN.rds", sep="_")))
 indices <- readRDS(here(surv.prods, str_c(species, season, "all-ihat-surveys.rds", sep="_")))
 ihat_ratioest_all <- readRDS(here(surv.prods, "ratio_est", "scup", "scup_fall_ratio_estimator_ihat.rds"))
 
@@ -359,15 +352,13 @@ ihat_model_all2 <- ihat_model_all |>
   group_by(pop, sim) |>
   mutate(
     n_years = n_distinct(year),
-    mean_ihat = mean(est, na.rm = TRUE),  #   cv = se_natural / est,
+    mean_ihat = mean(est, na.rm = TRUE),
     cv = sqrt(exp(se^2) - 1),
-    var_mean_ihat = sum(se_natural^2, na.rm = TRUE) / (n_years^2),   # this is the model-based analog of var_mean_ihat
-
-    # covariance between annual estimate and the across-year mean
-    cov_est_mean = (se_natural^2) / n_years,
+    var_mean_ihat = sum(est^2 * cv^2, na.rm = TRUE) / (n_years^2), # cprrected using se; sqrt(exp(se^2) - 1) = (est^2 * cv^2); this is the model-based analog of var_mean_ihat
+    cov_est_mean =  (est^2 * cv^2) / n_years,  # covariance between annual estimate and the across-year mean
     rel_ihat = est / mean_ihat,
     rel_var =
-      (se_natural^2 / (mean_ihat^2)) +
+      ((est^2 * cv^2) / (mean_ihat^2)) +
       ((est^2) * var_mean_ihat / (mean_ihat^4)) -
       (2 * est * cov_est_mean / (mean_ihat^3)),
     rel_var = pmax(rel_var, 0),
@@ -397,15 +388,13 @@ ihat_model_wind_all2 <- ihat_model_wind_all |>
   group_by(pop, sim) |>
   mutate(
     n_years = n_distinct(year),
-    mean_ihat = mean(est, na.rm = TRUE),  #   cv = se_natural / est,
+    mean_ihat = mean(est, na.rm = TRUE),
     cv = sqrt(exp(se^2) - 1),
-    var_mean_ihat = sum(se_natural^2, na.rm = TRUE) / (n_years^2),   # this is the model-based analog of var_mean_ihat
-
-    # covariance between annual estimate and the across-year mean
-    cov_est_mean = (se_natural^2) / n_years,
+    var_mean_ihat = sum(est^2 * cv^2, na.rm = TRUE) / (n_years^2), # cprrected using se; sqrt(exp(se^2) - 1) = (est^2 * cv^2); this is the model-based analog of var_mean_ihat
+    cov_est_mean =  (est^2 * cv^2) / n_years,  # covariance between annual estimate and the across-year mean
     rel_ihat = est / mean_ihat,
     rel_var =
-      (se_natural^2 / (mean_ihat^2)) +
+      ((est^2 * cv^2) / (mean_ihat^2)) +
       ((est^2) * var_mean_ihat / (mean_ihat^4)) -
       (2 * est * cov_est_mean / (mean_ihat^3)),
     rel_var = pmax(rel_var, 0),

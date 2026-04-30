@@ -1,3 +1,4 @@
+
 #' Stratified mean calculation
 #'
 #' Calculates stratified relative abundance indices from simulated survey data.
@@ -14,11 +15,11 @@
 #' for simulation, year, population, and scenario.
 
 calc_stratmean <- function(surv_list,
-                      strata_wts,
-                      survey_area,
-                      scenario_name,
-                      value_col = "n",
-                      years = NULL) {
+                           strata_wts,
+                           survey_area,
+                           scenario_name,
+                           value_col = "n",
+                           years = NULL) {
 
   map2_dfr(surv_list, seq_along(surv_list), function(surv, pop_num) {
 
