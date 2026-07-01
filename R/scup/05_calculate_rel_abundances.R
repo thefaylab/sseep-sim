@@ -125,6 +125,8 @@ stratmean_sq_all <- calc_stratmean(
   value_col = "n"
 )
 
+
+
 # Group by pop (and sim if needed) to compute rel_ihat within each population
 ihat_sq_all <- stratmean_sq_all |>
   group_by(pop, sim) |> #Calculations are done within each population realization (pop) and survey replicate (sim)
@@ -333,6 +335,10 @@ indices <- bind_rows(ihat_sq_all,ihat_precl_all,ihat_reall_all)
 saveRDS(trueN, here(surv.prods, str_c(species, season, "TrueN.rds", sep = "_")))
 saveRDS(indices, here(surv.prods, str_c(species, season, "all-ihat-surveys.rds", sep = "_")))
 
+saveRDS(stratmean_sq_all, here(surv.prods, str_c(species, season, "stratmu_sq.rds", sep = "_")))
+saveRDS(stratmean_precl_all, here(surv.prods, str_c(species, season, "stratmu_precl.rds", sep = "_")))
+saveRDS(stratmean_reall_all, here(surv.prods, str_c(species, season, "stratmu_reall.rds", sep = "_")))
+
 saveRDS(ihat_sq_all, here(surv.prods, str_c(species, season, "100pops-25sims-sq_rel-ihat.rds", sep = "_")))
 saveRDS(ihat_precl_all, here(surv.prods, str_c(species, season, "100pops-25sims-precl_rel-ihat.rds", sep = "_")))
 saveRDS(ihat_reall_all, here(surv.prods, str_c(species, season, "100pops-25sims-reall_rel-ihat.rds", sep = "_")))
@@ -372,13 +378,14 @@ ihat_model_all2 <- ihat_model_all |>
   ungroup()
 
 
+
 ihat_model_final <- ihat_model_all2 |>
   mutate(stratmu = NA_real_,
          stratvar = NA_real_,
          scenario = type   # rename "type" to "scenario"
   ) |>
   rename(cov_stratmu_mean = cov_est_mean) |>
-  select(pop, sim, year, stratmu, stratvar, cv, scenario, n_years, mean_ihat, var_mean_ihat, cov_stratmu_mean,
+  select(pop, sim, year, stratmu, stratvar, cv, scenario, n_years, est, mean_ihat, var_mean_ihat, cov_stratmu_mean,
          rel_ihat, rel_var, rel_se, rel_cv, rel_log_mean, rel_log_sd, rel_ci_lower, rel_ci_upper)
 
 
@@ -414,7 +421,7 @@ ihat_model_wind_final <- ihat_model_wind_all2 |>
          scenario = type   # rename "type" to "scenario"
   ) |>
   rename(cov_stratmu_mean = cov_est_mean) |>
-  select(pop, sim, year, stratmu, stratvar, cv, scenario, n_years, mean_ihat, var_mean_ihat, cov_stratmu_mean,
+  select(pop, sim, year, stratmu, stratvar, cv, scenario, n_years, est, mean_ihat, var_mean_ihat, cov_stratmu_mean,
          rel_ihat, rel_var, rel_se, rel_cv, rel_log_mean, rel_log_sd, rel_ci_lower, rel_ci_upper)
 
 
@@ -424,8 +431,10 @@ ihat_model_wind_final <- ihat_model_wind_final |>  mutate(scenario = "Model base
 
 
 
-indices2 <- bind_rows(indices, ihat_ratioest_all)
+indices2 <- bind_rows(indices, ihat_ratioest_all) |>
+  mutate(est = NA_real_)
 indices_models <- bind_rows(ihat_model_final, ihat_model_wind_final)
+
 
 indices_models <- indices_models |>
   select(names(indices2))

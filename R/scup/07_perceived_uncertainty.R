@@ -38,14 +38,12 @@ errors |> filter(sim==1, year==1, pop==1)
 ## ESTIMATION ERROR ####
 errors_plot <- errors %>%
   filter((scenario == "Status Quo") |
-           (scenario %in% c("Preclusion", "Reallocation", "Ratio estimator",
-                            "Model based", "Model based wind") & year >= 6)) |>
-  mutate(scenario = factor(scenario, levels = c("Status Quo", "Preclusion", "Reallocation", "Ratio estimator",
-                                                "Model based", "Model based wind")))
+           (scenario %in% c("Preclusion", "Supplemental Survey", "Supp correction") & year >= 6)) |>
+  mutate(scenario = factor(scenario, levels = c("Status Quo", "Preclusion", "Supplemental Survey", "Supp correction")))
 
 
 
-CVboxplot<- ggplot(errors_plot, aes(y = cv, fill = scenario)) +
+CVboxplot_Ch3<- ggplot(errors_plot, aes(y = cv, fill = scenario)) +
   geom_boxplot(position = position_dodge(width = 0.8),
                outlier.shape = NA,
                color = "black") + ylim(0,1) +
@@ -54,10 +52,8 @@ CVboxplot<- ggplot(errors_plot, aes(y = cv, fill = scenario)) +
   scale_fill_manual(values = c(
     "Status Quo"       = "#9B5F6B",
     "Preclusion"       = "#8C2B0E",
-    "Reallocation"     = "#C5692D",
-    "Ratio estimator"  = "#D9A441",
-    "Model based"      = "#A7C957",
-    "Model based wind" = "#275E4D"
+    "Supplemental Survey"     = "#6592B0",
+    "Supp correction"  = "#0067A2"
   )) +
   theme(text = element_text(size = 20),
         axis.title = element_text(size = 20),
@@ -69,8 +65,8 @@ CVboxplot<- ggplot(errors_plot, aes(y = cv, fill = scenario)) +
 
 
 
-ggsave(str_c(species, season, "CV-boxplot.png", sep = "_"),
-       plot = CVboxplot,
+ggsave(str_c(species, season, "CV-boxplot_Ch3.png", sep = "_"),
+       plot = CVboxplot_Ch3,
        device = "png",
        # last_plot(),
        here(plots),
