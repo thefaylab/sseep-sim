@@ -1,10 +1,15 @@
 ### created: 01/18/2024
-### updated: 07/02/2026
+### updated: 07/07/2026
 
+
+# PIPELINE OVERVIEW:
+# BLOCK 1: build a fixed set of tow locations (wind strata + their non-wind
+#          siblings) using ONE population (pop 1) as the template design.
+# BLOCK 2: apply those SAME fixed locations to every population in a chunk,
+#          simulating the supplemental survey without any new random sampling.
+# BLOCK 3: combine the standard/preclusion survey with the supplemental
+#          fixed-wind survey into one dataset per population.
 #
-
-## Objective ####
-
 
 ### PACKAGES ####
 library(sdmTMB)
@@ -49,9 +54,10 @@ age_space_group <- "set"
 resample_cells  <- TRUE
 
 
-#BLOCK 1
-# One population only, but now using full strata that CONTAIN wind cells
-# (not just the wind cells themselves)
+# BLOCK 1
+# only population 1 is used here. This defines a single, fixed
+# survey design (tow locations) that gets applied to every other population
+# in BLOCK 2. This is not a loop over populations by design.
 
 i <- 1
 
@@ -72,7 +78,7 @@ wind <- pop_i$grid[["AREA_CODE"]] == 1
 
 
 strat_layer <- pop_i$grid[["strat"]]
-offset <- 10000
+offset <- 10000 ## offset must exceed the max existing stratum code (here, max = 3450) to guarantee new wind-substrata codes never collide with real stratum codes
 
 new_strat <- strat_layer
 wind_idx <- which(as.vector(wind))
@@ -80,8 +86,12 @@ new_strat[wind_idx] <- as.vector(strat_layer)[as.vector(wind_idx)] + offset
 
 pop_inside$grid[["strat"]] <- new_strat
 
-sum(is.na(as.vector(wind)))          # how many NAs in wind
-sum(is.na(as.vector(strat_layer)))   # how many NAs in strat_layer
+
+# expect these two counts to be EQUAL - confirms NAs in `wind` and
+# `strat_layer` line up on the same out-of-domain cells (land/no-data),
+# not a mismatch introduced by this step
+sum(is.na(as.vector(wind)))
+sum(is.na(as.vector(strat_layer)))
 
 # sanity check: confirms restratification worked as intended
 # diagonal entries (row == column) = non-wind cells that keep their orifinal stratum code (unchanged)
@@ -109,17 +119,17 @@ strata_with_wind <- unique(as.vector(strat_layer)[as.vector(wind)])
 strata_with_wind <- strata_with_wind[!is.na(strata_with_wind)]
 
 fixed_locs_wind_strata <- survey_inside_i$setdet %>%
-  filter(year == 1, sim %in% 1:nsurveys) %>%
-  filter(strat %in% strata_with_wind | strat %in% (strata_with_wind + offset)) %>%
+  filter(year == 1, sim %in% 1:nsurveys) |>
+  filter(strat %in% strata_with_wind | strat %in% (strata_with_wind + offset)) |>
   distinct(sim, set, strat, x, y, cell, depth, AREA_CODE,
            tow_area, cell_area, strat_cells, strat_area,
-           strat_sets, cell_sets) %>%
+           strat_sets, cell_sets) |>
   mutate(division = 1)
 
-fixed_inside_wind_strata <- fixed_locs_wind_strata %>%
-  tidyr::crossing(year = years_post) %>%
-  arrange(sim, year, strat, set) %>%
-  mutate(set = row_number()) %>%   # important
+fixed_inside_wind_strata <- fixed_locs_wind_strata |>
+  tidyr::crossing(year = years_post) |>
+  arrange(sim, year, strat, set) |>
+  mutate(set = row_number()) |>
   select(sim, year, strat, x, y, cell, depth, AREA_CODE, division,
          tow_area, cell_area, strat_cells, strat_area,
          strat_sets, cell_sets, set)
@@ -171,15 +181,21 @@ for (i in this_chunk) {
 
 
 
-
-#Check
-
+# ---- VALIDATION: confirms BLOCK 2 sampled correctly ----
+# 1) no tows leaked into strata unrelated to wind areas
 survey_fixed_wind_strata$setdet |>
   distinct(strat) |>
   filter(!(strat %in% strata_with_wind | strat %in% (strata_with_wind + offset))) #returns 0. any stratum showing up here would mean a tow leaked in from a stratum that does not have wind cells
 
+
+# 2) both wind (AREA_CODE 1) and non-wind (AREA_CODE 2) cells present,
+#    as intended - the design deliberately samples full strata, not just
+#    wind cells
+
 survey_fixed_wind_strata$setdet %>% count(AREA_CODE) #shows area code 1 and 2 but thats ok because the code intentionally was designed for that.
 
+
+# 3) tow allocation per wind stratum matches expected set_den/min_sets math
 survey_fixed_wind_strata$setdet |>
   filter(AREA_CODE == 1) |>
   count(strat) #23 strata (new strata) that are wind affected with their respective amount of tows per sim/year/pop
@@ -187,11 +203,12 @@ survey_fixed_wind_strata$setdet |>
 #For 11650 (1500 rows): 1500 / 25 / 10 = 6 tows per sim.
 #For 11690 (1250 rows): 1250 / 25 / 10 = 5 tows per sim.
 
-fixed_inside_wind_strata %>%
-  filter(AREA_CODE == 1) %>%
-  distinct(strat, strat_sets, strat_area)
 
+# fixed_inside_wind_strata %>%
+#   filter(AREA_CODE == 1) %>%
+#   distinct(strat, strat_sets, strat_area)
 
+# 4) only years_post (6-15) appear, confirming years are restricted correctly
 table(survey_fixed_wind_strata$setdet$year) #confirms years 6 to 15 only
 
 
@@ -210,19 +227,23 @@ for (i in this_chunk) {
   precl_survey <- readRDS(here(survdat, sprintf("%s_%s_%03d_%d_precl_survey.rds", species, season, i, nsurveys)))
   supp_wa_survey  <- readRDS(here(survdat, sprintf("%s_%s_%03d_%d_supp_fixed_survey_wind_strata.rds", species, season, i, nsurveys)))
 
-  precl_setdet <- precl_survey %>%
+  precl_setdet <- precl_survey |>
     mutate(survey_type = "standard_precl")
 
-  supp_wa_setdet <- supp_wa_survey$setdet %>%
-    filter(year %in% years_post) %>%
+  # supp_wa_survey is filtered to years_post because the supplemental design
+  # only applies after the survey change; precl_survey already only contains
+  # the years it's meant to (no filter needed there)
+  supp_wa_setdet <- supp_wa_survey$setdet |>
+    filter(year %in% years_post) |>
     mutate(survey_type = "supplemental_fixed_wind_area")
 
-  survey_combined <- bind_rows(precl_setdet, supp_wa_setdet) %>%
+  survey_combined <- bind_rows(precl_setdet, supp_wa_setdet) |>
     arrange(sim, year, strat, set)
 
   saveRDS(survey_combined, here(survdat, sprintf("%s_%s_%03d_%d_supp_wa+precl_survey.rds", species, season, i, nsurveys)))
 
   message(sprintf("Saved supp_wa + precl survey for population %03d: %d rows", i, nrow(survey_combined)))
 }
+
 
 
