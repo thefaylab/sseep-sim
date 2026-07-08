@@ -9,7 +9,8 @@
 #          simulating the supplemental survey without any new random sampling.
 # BLOCK 3: combine the standard/preclusion survey with the supplemental
 #          fixed-wind survey into one dataset per population.
-#
+# BLOCK 4: recompute area weights to account for restratification, then
+#          calculate the abundance index for both scenarios.
 
 ### PACKAGES ####
 library(sdmTMB)
@@ -31,6 +32,8 @@ pop.dat   <- here("data", "rds", "pops")
 Nage.dat <- here("data", "rds", "Nages")
 dist.dat  <- here("data", "rds", "dists")
 survdat   <- here("data", "rds", "survdat")
+sseep.analysis <- "C:/Users/croman1/Desktop/UMassD/sseep-analysis"
+
 
 # Parameters
 species   <- "scup"
@@ -118,7 +121,7 @@ survey_inside_i <- sim_survey(
 strata_with_wind <- unique(as.vector(strat_layer)[as.vector(wind)])
 strata_with_wind <- strata_with_wind[!is.na(strata_with_wind)]
 
-fixed_locs_wind_strata <- survey_inside_i$setdet %>%
+fixed_locs_wind_strata <- survey_inside_i$setdet |>
   filter(year == 1, sim %in% 1:nsurveys) |>
   filter(strat %in% strata_with_wind | strat %in% (strata_with_wind + offset)) |>
   distinct(sim, set, strat, x, y, cell, depth, AREA_CODE,
@@ -129,7 +132,7 @@ fixed_locs_wind_strata <- survey_inside_i$setdet %>%
 fixed_inside_wind_strata <- fixed_locs_wind_strata |>
   tidyr::crossing(year = years_post) |>
   arrange(sim, year, strat, set) |>
-  mutate(set = row_number()) |>
+  mutate(set = row_number()) |>   # important
   select(sim, year, strat, x, y, cell, depth, AREA_CODE, division,
          tow_area, cell_area, strat_cells, strat_area,
          strat_sets, cell_sets, set)
@@ -144,8 +147,7 @@ saveRDS(fixed_inside_wind_strata, here(survdat, "scup_fall_pop001_sims_year01_fi
 # Define chunking
 chunk_size <- 20
 chunks <- split(nsims, ceiling(nsims / chunk_size))
-
-chunk_id <- 1 #change from 1 to 5
+chunk_id <- 5 #change from 1 to 5
 this_chunk <- chunks[[chunk_id]]
 
 
@@ -171,8 +173,7 @@ for (i in this_chunk) {
     resample_cells   = FALSE,              # fixed locations only
     custom_sets      = fixed_inside_wind_strata,       # use inside-wind grid
     age_sampling     = "random",
-    age_space_group  = "set"
-  )
+    age_space_group  = "set")
 
   # Save result
   saveRDS(survey_fixed_wind_strata, here(survdat, sprintf("%s_%s_%03d_%d_supp_fixed_survey_wind_strata.rds", species, season, i, nsurveys)))
@@ -247,3 +248,132 @@ for (i in this_chunk) {
 
 
 
+
+#### BLOCK 4: Calculate abundance index ####
+
+# area weights for each stratum (true polygon-based area, NOT the same as sim_survey()'s grid-cell-based strat_area used elsewhere in this script)
+strata_wts <- readRDS(here(sseep.analysis, "data", "rds", "active_strata_wts.rds")) |>
+  rename(strat = STRATUM)
+
+survey_area <- as.integer(sum(strata_wts$Area_SqNm))
+
+# strata_wts it still only has the original stratum codes. Since sim_survey() setdet now contains offset wind codes too, joining directly against strata_wts would produce NA area/weight for every wind row.
+# To fix this, use grid cell counts only as a proportion (not as an absolute area, since sim_survey() grid-based area units are not equivalent to Area_SqNm), and apply that proportion to split the true Area_SqNm of each wind-strat between wind and non-wind portions.
+
+cell_counts <- data.frame(
+  strat_layer = as.vector(strat_layer),
+  new_strat   = as.vector(new_strat)) |>
+  filter(!is.na(strat_layer),
+         strat_layer %in% strata_with_wind) |>
+  count(strat_layer, new_strat)
+
+total_cells <- cell_counts |>
+  group_by(strat_layer) |>
+  summarise(total = sum(n), .groups = "drop")
+
+split_fracs <- cell_counts |>
+  left_join(total_cells, by = "strat_layer") |>
+  mutate(frac = n / total)   #wind cells / all cells in that original stratum
+
+strata_wts_split <- split_fracs |>
+  left_join(strata_wts, by = c("strat_layer" = "strat")) |>
+  mutate(Area_SqNm = Area_SqNm * frac) |>
+  select(strat = new_strat, Area_SqNm)
+
+strata_wts_updated <- strata_wts |>
+  filter(!(strat %in% strata_with_wind)) |>   # untouched strata, kept exactly once
+  select(strat, Area_SqNm) |>
+  bind_rows(strata_wts_split) |>              # split/absorbed wind strata
+  mutate(RelWt = Area_SqNm / sum(Area_SqNm))
+
+survey_area_updated <- sum(strata_wts_updated$Area_SqNm, na.rm = TRUE)
+
+# validated: survey_area_updated == survey_area exactly (69114 == 69114) confirms the split conserves total area with no duplication/loss
+# one stratum (3200), is fully covered by wind cells and produces only one split row instead of two (as expected)
+
+
+## Abundance Index ####
+# calculate the abundance index and relative abundance index for each scenario
+
+source(here("R/stratmean_fn.R"))
+sseep.sim <- "D:/UMassD/sseep-sim"
+dist.dat <- here(sseep.sim, "data", "rds", "dists")
+survdat <- here(sseep.sim, "data", "rds", "survdat")
+surv.prods <- here(sseep.sim, "data", "rds", "surv-prods")
+mods.data <- here(sseep.sim, "data", "rds", "surv-prods", "mods_data", "scup", "fall")
+plots <- here("outputs", "plots")
+
+
+
+
+# Parameters
+species <- "scup"
+season  <- "fall"
+ages      <- 0:7
+years     <- 1:15
+nsims   <- 1:100
+ids     <- sprintf("%03d", nsims)
+
+survdat_supp <- map(ids, ~readRDS(here(survdat, sprintf("%s_%s_%s_25_supp_wa+precl_survey.rds", species, season, .x))))
+
+
+### Supplemental Survey ####
+
+# unlike Preclusion, Supplemental `strat` column contains both original stratum codes (non-wind cells) and offset codes from BLOCK 1 restratification (e.g. 11010 = original stratum 1010's wind portion).
+# strata_wts only has original codes, so filtering it directly (as for Preclusion) leaves every offset stratum with no matching area/weight, producing NAs for every year that includes wind strata.
+# strata_wts_updated fixes this adding split-area rows for the offset codes.
+
+# years 1:5 predate the wind supplement - strat codes here are all original,
+# same domain as status quo, so this matches status quo/preclusion exactly
+survdat_supp_y1_5 <- map(survdat_supp, ~
+                           as_tibble(.x) |>
+                           filter(year %in% 1:5))
+
+stratmean_supp_y1_5 <- calc_stratmean(
+  surv_list     = survdat_supp_y1_5,
+  strata_wts    = strata_wts,
+  survey_area   = survey_area,
+  scenario_name = "Supplemental Fixed",
+  value_col     = "n",
+  years         = 1:5)
+
+# years 6:15 include offset wind-strata codes (use strata_wts_updated), not a tow-count-filtered strata_wts (min_sets already guarantees every wind sub-stratum has enough tows by design, so that filter was redundant even before it caused this join issue)
+survdat_supp_y6_15 <- map(survdat_supp, ~
+                            as_tibble(.x) |>
+                            filter(year %in% 6:15))
+
+stratmean_supp_y6_15 <- calc_stratmean(
+  surv_list     = survdat_supp_y6_15,
+  strata_wts    = strata_wts_updated,
+  survey_area   = survey_area_updated,
+  scenario_name = "Supplemental Fixed",
+  value_col     = "n",
+  years         = 6:15)
+
+# ---- merge ----
+stratmean_supp_all <- bind_rows(stratmean_supp_y1_5, stratmean_supp_y6_15) |>
+  arrange(pop, sim, year)
+
+
+
+# Group to compute rel_ihat
+ihat_supp_all <- stratmean_supp_all |>
+  group_by(pop, sim) |>
+  mutate(
+    n_years = n_distinct(year),
+    mean_ihat = mean(stratmu, na.rm = TRUE),
+    var_mean_ihat = sum(stratvar, na.rm = TRUE) / (n_years^2),
+    cov_stratmu_mean = stratvar / n_years,
+    rel_ihat = stratmu / mean_ihat,
+    rel_var =
+      (stratvar / (mean_ihat^2)) +
+      ((stratmu^2) * var_mean_ihat / (mean_ihat^4)) -
+      (2 * stratmu * cov_stratmu_mean / (mean_ihat^3)),
+    rel_se = sqrt(pmax(rel_var,0)),
+    rel_cv = rel_se / rel_ihat,
+    rel_log_sd = sqrt(log(1 + rel_cv^2)),
+    rel_log_mean = log(rel_ihat) - 0.5 * rel_log_sd^2,
+    rel_ci_lower = qlnorm(0.025, meanlog = rel_log_mean, sdlog = rel_log_sd),
+    rel_ci_upper = qlnorm(0.975, meanlog = rel_log_mean, sdlog = rel_log_sd)
+  ) %>%
+  ungroup()
